@@ -1,6 +1,5 @@
 <script setup>
 import { onMounted } from 'vue'
-import IconCountChip from '../atoms/IconCountChip.vue'
 import SearchBar from '../molecules/SearchBar.vue'
 import NavigationBar from '../molecules/NavigationBar.vue'
 import BrandLogo from '../atoms/BrandLogo.vue'
@@ -33,25 +32,19 @@ const goToPolicy = () => {
 <template>
   <div class="container-fluid">
     <div class="row align-items-center py-3 px-xl-5 header-main-section">
-      <div class="col-lg-2 d-none d-lg-block">
+      <div class="col-lg-auto d-none d-lg-block">
         <BrandLogo />
       </div>
-      <div class="col-lg-7 col-6 text-left">
-        <slot name="saerchBar"></slot>
+      <div class="col-lg col-6 text-left">
+        <slot name="searchBar"></slot>
       </div>
-      <div class="col-lg-3 col-6 text-right">
+      <div class="col-lg-auto col-6 text-right">
         <template v-if="userStore.isLoggedIn">
           <a href="#" class="btn border" @click.prevent="showPolicyModal" style="margin-right: 0.5rem">
             <i class="fas fa-tags text-primary"></i>
             <span class="badge">판매하기</span>
           </a>
-        </template>
-        <IconCountChip count="30" style="margin-right: 0.5rem">
-          <i class="fas fa-heart text-primary"></i>
-        </IconCountChip>
-        <IconCountChip count="10" style="margin-right: 0.5rem">
-          <i class="fas fa-shopping-cart text-primary"></i>
-        </IconCountChip>
+        </template>        
       </div>
     </div>
   </div>
