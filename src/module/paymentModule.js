@@ -72,7 +72,7 @@ const BOOTPAY_STATUS = Object.freeze({
 })
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
-const requestPayment = async (member, item, price, onSuccess, onError) => {
+const requestPayment = async (member, item, price, metadata, onSuccess, onError) => {
   if (!member) {
     throw {
       errorMessage: '멤버 정보가 존재하지 않습니다.',
@@ -103,6 +103,7 @@ const requestPayment = async (member, item, price, onSuccess, onError) => {
       responseCreated.data.data.orderId,
       item,
       price,
+      metadata
     )
     try {
       const responseSendReceipt = await requestPaymentApprove(resultReceipt.order_id, {
@@ -127,13 +128,13 @@ const requestPayment = async (member, item, price, onSuccess, onError) => {
     // 이미 객체 형태면 그대로, 아니면 객체로 변환
     const errorObj =
       typeof error === 'object' && error !== null ? error : { errorMessage: String(error) }
-    if (typeof onError == 'function') {
+    if (typeof onError == 'function' && errorObj.event !== 'cancel') {
       onError(errorObj)
     }
   }
 }
 
-const requestPaymentToBootpay = async (member, orderId, item, price) => {
+const requestPaymentToBootpay = async (member, orderId, item, price, shippingAddress) => {
   const response = await Bootpay.requestPayment({
     application_id: PAYMENT_APP_ID,
     price: item.price * item.qty,
@@ -141,6 +142,7 @@ const requestPaymentToBootpay = async (member, orderId, item, price) => {
     order_id: orderId,
     tax_free: 0,
     user: createUserData(member),
+    metadata: shippingAddress,
     items: [
       {
         id: item.id,
@@ -158,6 +160,7 @@ const requestPaymentToBootpay = async (member, orderId, item, price) => {
       timeout: 5,
     },
   })
+
   if (response.event === RESPONSE_EVENT.DONE) {
     return response.data
   } else if (response.event === RESPONSE_EVENT.ERROR) {

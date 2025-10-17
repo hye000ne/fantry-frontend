@@ -29,7 +29,7 @@ const ProductAuctionPolicyPage = () => import('@/pages/product/ProductAuctionPol
 const InspectionStep1Page = () => import('@/pages/user/inspection/Step1Page.vue')
 const InspectionStep2Page = () => import('@/pages/user/inspection/Step2Page.vue')
 const InspectionStep3Page = () => import('@/pages/user/inspection/Step3Page.vue')
-const InspectionPolicyPage = () => import('@/pages/user/inspection/InspectionPolicyPage.vue'); 
+const InspectionPolicyPage = () => import('@/pages/user/inspection/InspectionPolicyPage.vue')
 // 마이페이지
 const MyPageLayout = () => import('@/pages/user/mypage/MyPage.vue')
 
@@ -157,27 +157,22 @@ const userRoutes = {
       meta: { requiresAuth: true },
     },
     {
-      path: 'order',
-      children: [
-        {
-          path: 'info',
-          name: 'Info',
-          component: UserInfoPage,
-          meta: { requiredLogin: false },
-        },
-        {
-          path: 'checkout',
-          name: 'Checkout',
-          component: CheckoutPage,
-          meta: { requiredLogin: false },
-        },
-        {
-          path: 'complete',
-          name: 'Complete',
-          component: PaymentCompletePage,
-          meta: { requiredLogin: false },
-        },
-      ],
+      path: 'product/order/info',
+      name: 'Info',
+      component: UserInfoPage,
+      meta: { requiredLogin: false },
+    },
+    {
+      path: 'product/order/checkout',
+      name: 'Checkout',
+      component: CheckoutPage,
+      meta: { requiredLogin: false },
+    },
+    {
+      path: 'product/order/complete',
+      name: 'Complete',
+      component: PaymentCompletePage,
+      meta: { requiredLogin: false },
     },
   ],
 }

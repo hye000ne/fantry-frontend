@@ -1,10 +1,12 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import CardHeader from './components/atoms/CardHeader.vue'
+import { usePaymentStore } from '@/stores/paymentStore'
 
 const router = useRouter()
 const route = useRoute()
+const paymentStore = usePaymentStore()
 
 // 결제 정보
 const paymentInfo = ref({
@@ -21,11 +23,9 @@ const paymentInfo = ref({
   recipientName: '',
   recipientPhone: '',
   // 배송지 정보
-  deliveryZipcode: '',
   deliveryAddress: '',
   deliveryDetailAddress: '',
   deliveryRequest: '',
-  estimatedDelivery: '',
 })
 
 // 페이지 로딩 상태
@@ -42,15 +42,19 @@ const initializePaymentData = () => {
     console.log('결제 결과 데이터:', result)
 
     // 결제 날짜 변환 (Unix timestamp -> 한국 날짜)
-    const paymentDate = result.purchasedAt
-      ? new Date(result.purchasedAt * 1000).toLocaleDateString('ko-KR', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        })
-      : new Date().toLocaleDateString('ko-KR')
+    result.purchasedAt[3] += 9
+    const paymentDate =
+      result.purchasedAt[0] +
+      '-' +
+      result.purchasedAt
+        .slice(1, 3)
+        .map((num) => ('0' + num).slice(-2))
+        .join('-') +
+      ' ' +
+      result.purchasedAt
+        .slice(-3)
+        .map((num) => ('0' + num).slice(-2))
+        .join(':')
 
     // 결제 방법 매핑
     const paymentMethod =
@@ -77,41 +81,51 @@ const initializePaymentData = () => {
       recipientName: result.recipientName || result.customerName || '수령인',
       recipientPhone: result.recipientPhone || result.customerPhone || '010-0000-0000',
       // 배송지 정보
-      deliveryZipcode: result.deliveryZipcode || '',
       deliveryAddress: result.deliveryAddress || '배송지 주소',
       deliveryDetailAddress: result.deliveryDetailAddress || '',
       deliveryRequest: result.deliveryRequest || '',
-      estimatedDelivery: calculateEstimatedDelivery(),
     }
+
+    // 로딩 완료
+    setTimeout(() => {
+      isLoading.value = false
+    }, 1000)
   } else {
-    // 테스트용 더미 데이터
-    paymentInfo.value = {
-      orderId: generateOrderId(),
-      productName: '소방차 포토카드',
-      totalAmount: 95000,
-      paymentMethod: '신용카드',
-      paymentDate: new Date().toLocaleDateString('ko-KR'),
-      customerName: '김주문',
-      customerPhone: '010-1111-2222',
-      customerEmail: 'order@example.com',
-      recipientName: '이수령',
-      recipientPhone: '010-3333-4444',
-      deliveryZipcode: '06234',
-      deliveryAddress: '서울특별시 강남구 테헤란로 123',
-      deliveryDetailAddress: '456호',
-      deliveryRequest: '문앞에 놓아주세요',
-      estimatedDelivery: calculateEstimatedDelivery(),
-    }
+    // 결제 정보가 없으면 홈으로 리다이렉트
+    alert('잘못된 접근입니다.')
+    router.replace('/')
   }
+}
+
+// 결제 데이터 정리 (Pinia 스토어 + sessionStorage)
+const cleanupPaymentData = () => {
+  console.log('결제 데이터 정리 시작')
+
+  // Pinia 스토어 초기화
+  paymentStore.reset()
 
   // sessionStorage 정리
   sessionStorage.removeItem('paymentResult')
   sessionStorage.removeItem('deliveryInfo')
 
-  // 로딩 완료
-  setTimeout(() => {
-    isLoading.value = false
-  }, 1000)
+  console.log('결제 데이터 정리 완료')
+}
+
+// 브라우저 뒤로가기 방지
+const preventBackNavigation = () => {
+  // 현재 페이지를 히스토리에 추가
+  history.pushState(null, '', location.href)
+
+  // popstate 이벤트 리스너 추가
+  window.addEventListener('popstate', handlePopState)
+}
+
+const handlePopState = (event) => {
+  // 뒤로가기 시도 시 다시 현재 페이지로 이동
+  history.pushState(null, '', location.href)
+
+  // 사용자에게 알림 (선택사항)
+  alert('결제가 완료되었습니다. 주문 내역은 마이페이지에서 확인하실 수 있습니다.')
 }
 
 // 주문번호 생성
@@ -126,34 +140,57 @@ const generateOrderId = () => {
   return `F${year}${month}${day}${random}`
 }
 
-// 예상 배송일 계산 (영업일 기준 2-3일)
-const calculateEstimatedDelivery = () => {
-  const today = new Date()
-  const deliveryDate = new Date(today)
-  deliveryDate.setDate(today.getDate() + 3) // 3일 후
+// 페이지 이동 함수들 - 결제 프로세스 히스토리 제거
+const clearPaymentHistoryAndNavigate = (path) => {
+  // 결제 프로세스 페이지 수 (Info -> Checkout -> Complete = 3페이지)
+  const paymentPagesCount = 3
 
-  return deliveryDate.toLocaleDateString('ko-KR', {
-    month: 'long',
-    day: 'numeric',
-    weekday: 'short',
-  })
+  // 현재 히스토리 길이 확인
+  const currentHistoryLength = window.history.length
+
+  // 결제 프로세스 이전 페이지로 돌아가기 (3페이지 뒤로)
+  if (currentHistoryLength >= paymentPagesCount) {
+    // history.go()로 3페이지 뒤로 이동한 후, replace로 목적지 경로 설정
+    window.history.go(-paymentPagesCount)
+
+    // popstate 이벤트 리스너를 일시적으로 제거하여 뒤로가기 방지 해제
+    window.removeEventListener('popstate', handlePopState)
+
+    // 뒤로가기 완료 후 목적지로 replace
+    setTimeout(() => {
+      router.replace(path)
+    }, 100)
+  } else {
+    // 히스토리가 부족한 경우 그냥 replace로 이동
+    router.replace(path)
+  }
 }
 
-// 페이지 이동 함수들
 const goToHome = () => {
-  router.push('/')
+  clearPaymentHistoryAndNavigate('/')
 }
 
 const goToMyPage = () => {
-  router.push('/mypage')
+  clearPaymentHistoryAndNavigate('/mypage')
 }
 
 const goToOrderHistory = () => {
-  router.push('/mypage/orders')
+  clearPaymentHistoryAndNavigate('/mypage/orders')
 }
 
 onMounted(() => {
   initializePaymentData()
+
+  // 결제 데이터 정리 (페이지 로드 직후)
+  cleanupPaymentData()
+
+  // 브라우저 뒤로가기 방지
+  preventBackNavigation()
+})
+
+onBeforeUnmount(() => {
+  // 컴포넌트 언마운트 시 이벤트 리스너 제거
+  window.removeEventListener('popstate', handlePopState)
 })
 </script>
 
@@ -286,10 +323,6 @@ onMounted(() => {
                 <!-- 배송 주소 섹션 -->
                 <div class="delivery-address mb-4">
                   <h6 class="text-secondary mb-3 font-weight-bold">배송 주소</h6>
-                  <div class="row mb-3" v-if="paymentInfo.deliveryZipcode">
-                    <div class="col-sm-3 font-weight-medium text-muted">우편번호</div>
-                    <div class="col-sm-9">{{ paymentInfo.deliveryZipcode }}</div>
-                  </div>
                   <div class="row mb-3">
                     <div class="col-sm-3 font-weight-medium text-muted">주소</div>
                     <div class="col-sm-9">{{ paymentInfo.deliveryAddress }}</div>
@@ -298,62 +331,10 @@ onMounted(() => {
                     <div class="col-sm-3 font-weight-medium text-muted">상세주소</div>
                     <div class="col-sm-9">{{ paymentInfo.deliveryDetailAddress }}</div>
                   </div>
-                  <div class="row mb-3" v-if="paymentInfo.deliveryRequest">
+                  <div class="row" v-if="paymentInfo.deliveryRequest">
                     <div class="col-sm-3 font-weight-medium text-muted">배송 요청사항</div>
                     <div class="col-sm-9">
                       <span class="badge badge-info">{{ paymentInfo.deliveryRequest }}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- 예상 배송일 -->
-                <div class="delivery-schedule">
-                  <div class="row">
-                    <div class="col-sm-3 font-weight-medium text-muted">예상 배송일</div>
-                    <div class="col-sm-9">
-                      <span class="badge badge-success px-3 py-2">{{ paymentInfo.estimatedDelivery }}</span>
-                      <small class="text-muted ml-2">검수 완료 후 배송됩니다</small>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <!-- 다음 단계 안내 -->
-          <section class="mb-5">
-            <div class="card border-info bg-light">
-              <div class="card-body">
-                <h5 class="card-title text-info mb-3">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="mr-2">
-                    <path
-                      d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
-                    />
-                  </svg>
-                  다음 단계 안내
-                </h5>
-                <div class="step-guide">
-                  <div class="step-item">
-                    <div class="step-number">1</div>
-                    <div class="step-content">
-                      <h6>검수 진행</h6>
-                      <p class="text-muted mb-0">
-                        전문 검수팀이 상품을 꼼꼼히 검수합니다 (1-2일 소요)
-                      </p>
-                    </div>
-                  </div>
-                  <div class="step-item">
-                    <div class="step-number">2</div>
-                    <div class="step-content">
-                      <h6>배송 준비</h6>
-                      <p class="text-muted mb-0">검수 완료 후 안전하게 포장하여 배송 준비합니다</p>
-                    </div>
-                  </div>
-                  <div class="step-item">
-                    <div class="step-number">3</div>
-                    <div class="step-content">
-                      <h6>배송 완료</h6>
-                      <p class="text-muted mb-0">고객님께 안전하게 배송됩니다 (배송 시 SMS 알림)</p>
                     </div>
                   </div>
                 </div>
@@ -434,43 +415,6 @@ onMounted(() => {
   }
 }
 
-.step-guide {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.step-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 1rem;
-}
-
-.step-number {
-  width: 32px;
-  height: 32px;
-  background-color: #2f4dca;
-  color: white;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  font-size: 14px;
-  flex-shrink: 0;
-}
-
-.step-content h6 {
-  color: #333;
-  font-weight: 600;
-  margin-bottom: 0.25rem;
-}
-
-.step-content p {
-  font-size: 0.9rem;
-  line-height: 1.4;
-}
-
 .action-buttons .btn {
   transition: all 0.3s ease;
   border-radius: 8px;
@@ -513,12 +457,6 @@ onMounted(() => {
   font-size: 0.9rem;
 }
 
-/* 배송 일정 배지 스타일 */
-.delivery-schedule .badge-success {
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
 /* 반응형 디자인 */
 @media (max-width: 768px) {
   .hero-title {
@@ -528,15 +466,6 @@ onMounted(() => {
   .action-buttons .btn {
     margin-bottom: 0.5rem;
     width: 100%;
-  }
-
-  .step-guide {
-    gap: 1rem;
-  }
-
-  .step-item {
-    flex-direction: row;
-    align-items: center;
   }
 }
 

@@ -1,25 +1,27 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, onBeforeRouteLeave } from 'vue-router'
 import CardHeader from './components/atoms/CardHeader.vue'
 import { Payment } from '@/module/paymentModule'
 import openDialog from '@/module/dialog'
+import { usePaymentStore } from '@/stores/paymentStore'
 
 const router = useRouter()
+const paymentStore = usePaymentStore()
 
 // 이전 페이지에서 전달된 정보
+const userInfo = ref(null)
 const deliveryInfo = ref(null)
-const product = ref(null)
+const auctionDetails = ref(null)
 
 // 수수료 설정
 const fees = {
-  inspection: 3000, // 검수비
   delivery: 3000, // 배송비
 }
 
 const totalPrice = computed(() => {
-  if (!product.value) return 0
-  return product.value.price + fees.inspection + fees.delivery
+  if (!auctionDetails.value || !auctionDetails.value.currentPrice) return 0
+  return auctionDetails.value.currentPrice + fees.delivery
 })
 
 const goBackToUserInfo = () => {
@@ -27,7 +29,7 @@ const goBackToUserInfo = () => {
 }
 
 const requestPayment = () => {
-  if (!deliveryInfo.value || !product.value) {
+  if (!userInfo.value || !deliveryInfo.value || !auctionDetails.value) {
     openDialog('주문자 정보가 없습니다. 다시 시도해주세요.')
     goBackToUserInfo()
     return
@@ -35,15 +37,15 @@ const requestPayment = () => {
 
   // Payment 모듈의 purchase 함수에 맞는 파라미터 구성
   const member = {
-    id: deliveryInfo.value.id || 'test-user-' + Date.now(), // 테스트용 ID
-    name: deliveryInfo.value.name,
-    phone: deliveryInfo.value.phone,
-    email: deliveryInfo.value.email,
+    id: userInfo.value.memberId || 'user-' + Date.now(),
+    name: userInfo.value.name,
+    phone: userInfo.value.phone,
+    email: userInfo.value.email,
   }
 
   const item = {
-    id: product.value.id,
-    name: product.value.name,
+    id: auctionDetails.value.auctionId,
+    name: auctionDetails.value.itemName,
     price: totalPrice.value, // 총 결제금액 (상품가격 + 수수료)
     qty: 1,
   }
@@ -51,23 +53,29 @@ const requestPayment = () => {
   const onResponse = (response) => {
     console.log('결제 응답:', response)
     if (response.success == true) {
-      // 결제 성공 시 결제 완료 페이지로 이동 (받는 사람 정보 포함)
-      sessionStorage.setItem('paymentResult', JSON.stringify({
-        ...response.data,
-        // 주문자 정보
-        customerName: deliveryInfo.value?.name,
-        customerPhone: deliveryInfo.value?.phone,
-        customerEmail: deliveryInfo.value?.email,
-        // 받는 사람 정보
-        recipientName: deliveryInfo.value?.recipientName,
-        recipientPhone: deliveryInfo.value?.recipientPhone,
-        // 배송지 정보
-        deliveryZipcode: deliveryInfo.value?.zipcode,
-        deliveryAddress: deliveryInfo.value?.address,
-        deliveryDetailAddress: deliveryInfo.value?.detailAddress,
-        deliveryRequest: deliveryInfo.value?.deliveryRequest,
-      }))
-      sessionStorage.setItem('deliveryInfo', JSON.stringify(deliveryInfo.value))
+      // 결제 성공 시 결제 완료 페이지로 이동
+      sessionStorage.setItem(
+        'paymentResult',
+        JSON.stringify({
+          ...response.data,
+          // 주문자 정보
+          customerName: userInfo.value.name,
+          customerPhone: userInfo.value.phone,
+          customerEmail: userInfo.value.email,
+          // 받는 사람 정보
+          recipientName: deliveryInfo.value.recipientName,
+          recipientPhone: deliveryInfo.value.recipientPhone,
+          // 배송지 정보
+          deliveryAddress: deliveryInfo.value.address,
+          deliveryDetailAddress: deliveryInfo.value.detailAddress,
+          deliveryRequest: deliveryInfo.value.deliveryRequest,
+          // 상품 정보
+          auctionId: auctionDetails.value.auctionId,
+          productName: auctionDetails.value.itemName,
+          productPrice: auctionDetails.value.currentPrice,
+          totalPrice: totalPrice.value,
+        }),
+      )
 
       router.push({ name: 'Complete' })
     } else {
@@ -77,83 +85,57 @@ const requestPayment = () => {
 
   const onError = (error) => {
     console.error('결제 에러:', error)
-    // error가 문자열일 수도 있고 객체일 수도 있음
-    const errorMessage = typeof error === 'string'
-      ? error
-      : error?.errorMessage || '결제 처리 중 오류가 발생했습니다.'
+    const errorMessage =
+      typeof error === 'string' ? error : error?.errorMessage || '결제 처리 중 오류가 발생했습니다.'
     openDialog(errorMessage)
   }
-
+  const metadata = {
+    userInfo: userInfo.value,
+    deliveryInfo: deliveryInfo.value,
+    auctionInfo: {
+      auctionId: auctionDetails.value.auctionId,
+      itemName: auctionDetails.value.itemName,
+      itemPrice: auctionDetails.value.currentPrice,
+    },
+  }
+  console.log("메타데이터",metadata);
+  
   // 결제 요청 실행
-  Payment.purchase(member, item, totalPrice.value, onResponse, onError)
+  Payment.purchase(member, item, totalPrice.value, metadata, onResponse, onError)
 }
 
 onMounted(() => {
   console.log('CheckoutPage 마운트됨')
 
-  let hasProductData = false
-  let hasDeliveryData = false
+  // Pinia 스토어에서 복원 시도
+  paymentStore.restoreFromSession()
 
-  // 1. Router state에서 먼저 시도
-  if (router.currentRoute.value.state?.product) {
-    console.log('Router state에서 상품 정보 가져옴:', router.currentRoute.value.state.product)
-    product.value = router.currentRoute.value.state.product
-    hasProductData = true
-  }
-
-  if (router.currentRoute.value.state?.deliveryInfo) {
-    console.log('Router state에서 배송 정보 가져옴:', router.currentRoute.value.state.deliveryInfo)
-    deliveryInfo.value = router.currentRoute.value.state.deliveryInfo
-    hasDeliveryData = true
-  }
-
-  // 2. sessionStorage에서 시도
-  if (!hasProductData) {
-    const storedProduct = sessionStorage.getItem('checkoutProduct')
-    console.log('SessionStorage에서 상품 정보 확인:', storedProduct)
-
-    if (storedProduct) {
-      try {
-        const parsedProduct = JSON.parse(storedProduct)
-        console.log('SessionStorage에서 상품 정보 가져옴:', parsedProduct)
-        product.value = parsedProduct
-        hasProductData = true
-      } catch (error) {
-        console.error('상품 정보 파싱 에러:', error)
-      }
-    }
-  }
-
-  if (!hasDeliveryData) {
-    const storedDelivery = sessionStorage.getItem('checkoutDeliveryInfo')
-    console.log('SessionStorage에서 배송 정보 확인:', storedDelivery)
-
-    if (storedDelivery) {
-      try {
-        const parsedDelivery = JSON.parse(storedDelivery)
-        console.log('SessionStorage에서 배송 정보 가져옴:', parsedDelivery)
-        deliveryInfo.value = parsedDelivery
-        hasDeliveryData = true
-      } catch (error) {
-        console.error('배송 정보 파싱 에러:', error)
-      }
-    }
-  }
-
-  // 데이터가 없으면 이전 페이지로 리다이렉트
-  if (!hasProductData || !hasDeliveryData) {
-    console.warn('필수 정보가 없습니다. 이전 페이지로 이동합니다.')
+  // 스토어에서 데이터 가져오기
+  if (paymentStore.isFlowValid()) {
+    userInfo.value = { ...paymentStore.userInfo }
+    deliveryInfo.value = { ...paymentStore.deliveryInfo }
+    auctionDetails.value = paymentStore.auctionDetails
+  } else {
+    // 유효성 검사 실패 시 이전 페이지로 리다이렉트
+    console.warn('결제 플로우가 유효하지 않습니다. 이전 페이지로 이동합니다.')
     openDialog('주문 정보를 먼저 입력해주세요.')
     goBackToUserInfo()
     return
   }
 
-  // 사용 후 sessionStorage 정리
-  sessionStorage.removeItem('checkoutProduct')
-  sessionStorage.removeItem('checkoutDeliveryInfo')
-
-  console.log('최종 상품 정보:', product.value)
+  console.log('최종 주문자 정보:', userInfo.value)
   console.log('최종 배송 정보:', deliveryInfo.value)
+  console.log('최종 경매 정보:', auctionDetails.value)
+})
+
+// 페이지 이탈 시 처리 (Info/Complete가 아닌 다른 페이지로 이동 시)
+onBeforeRouteLeave((to, _from, next) => {
+  // UserInfo 페이지(뒤로가기)나 Complete 페이지(결제 성공)로 이동하는 경우는 제외
+  if (to.name !== 'Info' && to.name !== 'Complete') {
+    console.log('결제 프로세스 이탈 감지 (CheckoutPage) - paymentStore 초기화')
+    paymentStore.reset()
+  }
+  next()
 })
 </script>
 
@@ -172,22 +154,24 @@ onMounted(() => {
   <div class="d-flex flex-row">
     <main class="col-lg-8">
       <!-- 구매 상품 정보 -->
-      <section class="mb-5" v-if="product">
+      <section class="mb-5" v-if="auctionDetails">
         <h4 class="mb-3">구매 상품</h4>
         <div class="border p-4">
           <div class="d-flex align-items-start">
-            <img class="product-img mr-4" :src="product.images[0]" :alt="product.name" />
+            <img
+              class="product-img mr-4"
+              :src="auctionDetails.imageUrl || '/images/fantry_logo.png'"
+              :alt="auctionDetails.itemName"
+            />
             <div class="flex-grow-1">
-              <h5 class="mb-2 font-weight-bold">{{ product.name }}</h5>
+              <h5 class="mb-2 font-weight-bold">{{ auctionDetails.itemName }}</h5>
               <div class="mb-2">
-                <span class="badge badge-success mr-2">{{ product.condition }}</span>
-                <span class="text-muted small">사이즈: {{ product.size }}</span>
+                <span class="badge badge-success mr-2">{{ auctionDetails.productGrade }}</span>
               </div>
-              <p class="text-muted small mb-0">판매자: {{ product.seller }}</p>
             </div>
             <div class="text-right">
               <h5 class="text-primary font-weight-bold mb-0">
-                {{ product.price.toLocaleString() }}원
+                {{ auctionDetails.currentPrice?.toLocaleString() }}원
               </h5>
             </div>
           </div>
@@ -195,20 +179,20 @@ onMounted(() => {
       </section>
 
       <!-- 주문자 정보 확인 -->
-      <section class="mb-5" v-if="deliveryInfo">
+      <section class="mb-5" v-if="userInfo">
         <h4 class="mb-3">주문자 정보</h4>
         <div class="border p-4">
           <div class="row mb-3">
             <div class="col-sm-3 font-weight-medium text-muted">이름</div>
-            <div class="col-sm-9">{{ deliveryInfo.name }}</div>
+            <div class="col-sm-9">{{ userInfo.name }}</div>
           </div>
           <div class="row mb-3">
             <div class="col-sm-3 font-weight-medium text-muted">휴대폰</div>
-            <div class="col-sm-9">{{ deliveryInfo.phone }}</div>
+            <div class="col-sm-9">{{ userInfo.phone }}</div>
           </div>
           <div class="row">
             <div class="col-sm-3 font-weight-medium text-muted">이메일</div>
-            <div class="col-sm-9">{{ deliveryInfo.email }}</div>
+            <div class="col-sm-9">{{ userInfo.email }}</div>
           </div>
         </div>
       </section>
@@ -222,7 +206,7 @@ onMounted(() => {
           </button>
         </div>
         <div class="border p-4">
-          <!-- 받는 사람 정보 (한국 쇼핑몰 스타일) -->
+          <!-- 받는 사람 정보 -->
           <div class="recipient-section mb-4 pb-4 border-bottom">
             <h6 class="text-primary mb-3">받는 사람</h6>
             <div class="row mb-3">
@@ -238,10 +222,6 @@ onMounted(() => {
           <!-- 배송 주소 -->
           <div class="address-section">
             <h6 class="text-secondary mb-3">배송 주소</h6>
-            <div class="row mb-3">
-              <div class="col-sm-3 font-weight-medium text-muted">우편번호</div>
-              <div class="col-sm-9">{{ deliveryInfo.zipcode }}</div>
-            </div>
             <div class="row mb-3">
               <div class="col-sm-3 font-weight-medium text-muted">주소</div>
               <div class="col-sm-9">{{ deliveryInfo.address }}</div>
@@ -261,17 +241,16 @@ onMounted(() => {
       </section>
     </main>
     <aside class="col-lg-4">
-      <div class="card border-secondary mb-5" v-if="product">
+      <div class="card border-secondary mb-5" v-if="auctionDetails">
         <CardHeader>결제 정보</CardHeader>
         <div class="card-body">
           <div class="d-flex justify-content-between mb-3 pt-1">
             <h6 class="font-weight-medium">상품가격</h6>
-            <h6 class="font-weight-medium">{{ product.price.toLocaleString() }}원</h6>
+            <h6 class="font-weight-medium">
+              {{ auctionDetails.currentPrice?.toLocaleString() }}원
+            </h6>
           </div>
-          <div class="d-flex justify-content-between mb-2">
-            <span class="text-muted small">검수비</span>
-            <span class="text-muted small">{{ fees.inspection.toLocaleString() }}원</span>
-          </div>
+
           <div class="d-flex justify-content-between mb-3">
             <span class="text-muted small">배송비</span>
             <span class="text-muted small">{{ fees.delivery.toLocaleString() }}원</span>
@@ -337,12 +316,6 @@ onMounted(() => {
 
 .address-section h6 {
   font-size: 0.9rem;
-}
-
-/* 페이지 특화 스타일 */
-.test-panel {
-  border-left: 4px solid #ffc107;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .badge {

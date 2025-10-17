@@ -1,128 +1,137 @@
 <script setup>
-import { ref, reactive, computed, onMounted, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { useRouter, useRoute, onBeforeRouteLeave } from 'vue-router'
 import openAddressSearch from '@/module/kakaoAddressSearch'
 import { useUserStore } from '@/stores/userStore'
+import { usePaymentStore } from '@/stores/paymentStore'
+import { getAllAddressMember, addAddress } from '@/api/address'
+import { getAuctionDetails } from '@/api/auction'
+import openDialog from '@/module/dialog'
 
 const router = useRouter()
-
+const route = useRoute()
 const userStore = useUserStore()
-const currentUser = useRouter.currentUser
-const props = defineProps({
-  product: {
-    type: Object,
-    default: {
-      id: 1,
-      name: '소방차 포토카드',
-      price: 89000,
-      condition: '중고 A급',
-      seller: '소방차매니아',
-      images: ['/images/fantry_logo.png'],
-    },
-  },
-})
+const paymentStore = usePaymentStore()
 
-const deliveryInfo = reactive({
+// Auction context from query parameter
+const auctionId = ref(null)
+const auctionDetails = ref(null)
+
+// 주문자 정보 (읽기 전용 - 로그인된 사용자 정보)
+const userInfo = reactive({
+  memberId: null,
   name: '',
   phone: '',
   email: '',
+})
+
+// 배송지 목록
+const savedAddresses = ref([])
+const selectedAddressId = ref(null)
+
+// 받는 사람 정보
+const recipientInfo = reactive({
   recipientName: '',
   recipientPhone: '',
-  zipcode: '',
+})
+
+// 배송지 정보 (선택된 주소로 자동 채워짐)
+const deliveryAddress = reactive({
   address: '',
   detailAddress: '',
   deliveryRequest: '',
 })
 
-// 사용자 저장된 배송지 목록
-const savedAddresses = ref([])
+// 배송 요청사항 직접 입력
+const customDeliveryRequest = ref('')
+const showCustomRequestInput = ref(false)
 
-const selectedAddressId = ref('')
-const isFormValid = ref(false)
+// 새 배송지 추가 모달
+const showAddAddressModal = ref(false)
+const newAddress = reactive({
+  alias: '',
+  recipientName: '',
+  recipientTel: '',
+  roadAddress: '',
+  detailAddress: '',
+  isDefault: false,
+})
 
-const validateForm = () => {
-  const isValid =
-    deliveryInfo.name &&
-    deliveryInfo.phone &&
-    deliveryInfo.email &&
-    deliveryInfo.recipientName &&
-    deliveryInfo.recipientPhone &&
-    deliveryInfo.zipcode &&
-    deliveryInfo.address
+const isFormValid = computed(() => {
+  return (
+    userInfo.name &&
+    userInfo.phone &&
+    userInfo.email &&
+    recipientInfo.recipientName &&
+    recipientInfo.recipientPhone &&
+    deliveryAddress.address
+  )
+})
 
-  isFormValid.value = isValid
-
-  console.log('[유효성검사] 결과:', {
-    isValid,
-    name: !!deliveryInfo.name,
-    phone: !!deliveryInfo.phone,
-    email: !!deliveryInfo.email,
-    recipientName: !!deliveryInfo.recipientName,
-    recipientPhone: !!deliveryInfo.recipientPhone,
-    zipcode: !!deliveryInfo.zipcode,
-    address: !!deliveryInfo.address,
-  })
-
-  return isValid
-}
-
-const selectSavedAddress = (addressId) => {
-  selectedAddressId.value = addressId.toString()
-
-  const selected = savedAddresses.value.find((addr) => addr.id === parseInt(addressId))
-  if (selected) {
-    console.log('[배송지선택] 저장된 주소 적용:', selected)
-    deliveryInfo.zipcode = selected.zipcode
-    deliveryInfo.address = selected.address
-    deliveryInfo.detailAddress = selected.detailAddress
-    validateForm()
+// 로그인된 사용자 정보 로드
+const loadUserInfo = () => {
+  if (userStore.currentUser) {
+    userInfo.memberId = userStore.currentUser.memberId || null
+    userInfo.name = userStore.currentUser.name || ''
+    userInfo.phone = userStore.currentUser.tel || ''
+    userInfo.email = userStore.currentUser.email || ''
   }
 }
 
-const onSelectAddress = () => {
-  if (selectedAddressId.value) {
-    // 저장된 주소 선택
-    const selected = savedAddresses.value.find(
-      (addr) => addr.id === parseInt(selectedAddressId.value),
-    )
-    if (selected) {
-      console.log('[배송지선택] 저장된 주소 적용:', selected)
-      deliveryInfo.zipcode = selected.zipcode
-      deliveryInfo.address = selected.address
-      deliveryInfo.detailAddress = selected.detailAddress
+// 배송지 목록 로드
+const loadAddresses = async () => {
+  if (!userStore.currentUser || !userStore.currentUser.memberId) {
+    console.warn('사용자 정보가 없습니다.')
+    return
+  }
+
+  try {
+    const response = await getAllAddressMember(userStore.currentUser.memberId)
+    savedAddresses.value = response.data.addressList || []
+
+    // 기본 배송지 자동 선택
+    const defaultAddress = savedAddresses.value.find((addr) => addr.isDefault === '1')
+    if (defaultAddress) {
+      selectAddress(defaultAddress.addressId)
     }
-  } else {
-    // 선택 해제 시 주소 정보 초기화
-    console.log('[배송지선택] 주소 초기화')
-    deliveryInfo.zipcode = ''
-    deliveryInfo.address = ''
-    deliveryInfo.detailAddress = ''
+  } catch (error) {
+    console.error('배송지 목록 로드 실패:', error)
+    savedAddresses.value = []
   }
-  validateForm()
 }
 
-const onClickAddressSearch = () => {
+// 배송지 선택
+const selectAddress = (addressId) => {
+  const selected = savedAddresses.value.find((addr) => addr.addressId === addressId)
+  if (selected) {
+    selectedAddressId.value = addressId
+    recipientInfo.recipientName = selected.recipientName || ''
+    recipientInfo.recipientPhone = selected.recipientTel || ''
+    deliveryAddress.address = selected.roadAddress || ''
+    deliveryAddress.detailAddress = selected.detailAddress || ''
+  }
+}
+
+// 배송 요청사항 변경 처리
+const onDeliveryRequestChange = () => {
+  if (deliveryAddress.deliveryRequest === 'custom') {
+    showCustomRequestInput.value = true
+    customDeliveryRequest.value = ''
+  } else {
+    showCustomRequestInput.value = false
+    customDeliveryRequest.value = ''
+  }
+}
+
+// 새 배송지 추가 - 주소 검색
+const searchNewAddress = () => {
   openAddressSearch((data) => {
-    console.log('[주소검색] API 콜백 실행:', data)
-
-    // 즉시 업데이트 (nextTick 제거)
-    selectedAddressId.value = ''
-    deliveryInfo.zipcode = data.zonecode
-    deliveryInfo.address = data.address
-    deliveryInfo.detailAddress = ''
-
-    console.log('[주소검색] deliveryInfo 객체 직후:', deliveryInfo)
-    console.log('[주소검색] zipcode 값:', deliveryInfo.zipcode)
-    console.log('[주소검색] address 값:', deliveryInfo.address)
-
-    // DOM 업데이트 후 유효성 검사
-    nextTick(() => {
-      validateForm()
-      console.log('[주소검색] 유효성 검사 후 isFormValid:', isFormValid.value)
-    })
+    newAddress.roadAddress = data.address
+    newAddress.detailAddress = ''
   })
 }
 
+// 전화번호 포맷팅
 const formatPhoneNumber = (value) => {
   const numbers = value.replace(/[^\d]/g, '')
   if (numbers.length <= 3) return numbers
@@ -130,64 +139,217 @@ const formatPhoneNumber = (value) => {
   return `${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7, 11)}`
 }
 
-const onPhoneInput = (event) => {
-  const formatted = formatPhoneNumber(event.target.value)
-  deliveryInfo.phone = formatted
-  event.target.value = formatted
-  validateForm()
-}
-
 const onRecipientPhoneInput = (event) => {
   const formatted = formatPhoneNumber(event.target.value)
-  deliveryInfo.recipientPhone = formatted
+  recipientInfo.recipientPhone = formatted
   event.target.value = formatted
-  validateForm()
 }
 
+const onNewAddressPhoneInput = (event) => {
+  const formatted = formatPhoneNumber(event.target.value)
+  newAddress.recipientTel = formatted
+  event.target.value = formatted
+}
+
+// 새 배송지 저장
+const saveNewAddress = async () => {
+  if (
+    !newAddress.alias ||
+    !newAddress.recipientName ||
+    !newAddress.recipientTel ||
+    !newAddress.roadAddress
+  ) {
+    openDialog('모든 필수 항목을 입력해주세요.')
+    return
+  }
+
+  try {
+    const payload = {
+      memberId: userStore.currentUser.memberId,
+      alias: newAddress.alias,
+      recipientName: newAddress.recipientName,
+      recipientTel: newAddress.recipientTel,
+      roadAddress: newAddress.roadAddress,
+      detailAddress: newAddress.detailAddress || '',
+      isDefault: newAddress.isDefault ? '1' : '0',
+    }
+
+    await addAddress(payload)
+    openDialog('배송지가 추가되었습니다.')
+
+    // 배송지 목록 새로고침
+    await loadAddresses()
+
+    // 모달 닫기 및 초기화
+    showAddAddressModal.value = false
+    resetNewAddressForm()
+
+    // 방금 추가한 배송지 자동 선택 (목록의 마지막 항목)
+    if (savedAddresses.value.length > 0) {
+      const lastAddress = savedAddresses.value[savedAddresses.value.length - 1]
+      selectAddress(lastAddress.addressId)
+    }
+  } catch (error) {
+    console.error('배송지 추가 실패:', error)
+    openDialog('배송지 추가에 실패했습니다. 다시 시도해주세요.')
+  }
+}
+
+// 새 배송지 폼 초기화
+const resetNewAddressForm = () => {
+  newAddress.alias = ''
+  newAddress.recipientName = ''
+  newAddress.recipientTel = ''
+  newAddress.roadAddress = ''
+  newAddress.detailAddress = ''
+  newAddress.isDefault = false
+}
+
+// 모달 닫기 헬퍼 함수
+const closeAddressModal = () => {
+  showAddAddressModal.value = false
+  resetNewAddressForm()
+}
+
+// 결제 정보 확인 페이지로 이동
 const proceedToCheckout = () => {
   if (!isFormValid.value) {
-    console.warn('[결제진행] 폼 유효성 검사 실패')
-    alert('필수 항목을 모두 입력해주세요.')
+    openDialog('필수 항목을 모두 입력해주세요.')
     return
   }
 
-  console.log('[결제진행] 전달할 상품 정보:', props.product)
-  console.log('[결제진행] 전달할 배송 정보:', deliveryInfo)
-
-  // sessionStorage에 상품 정보와 배송 정보 함께 저장
-  sessionStorage.setItem('checkoutProduct', JSON.stringify(props.product))
-  sessionStorage.setItem('checkoutDeliveryInfo', JSON.stringify(deliveryInfo))
-
-  // 상품 정보와 배송 정보를 다음 페이지로 전달
-  router.push({
-    name: 'Checkout',
+  // Pinia 스토어에 정보 저장
+  paymentStore.setUserInfo({
+    memberId: userInfo.memberId,
+    name: userInfo.name,
+    phone: userInfo.phone,
+    email: userInfo.email,
   })
+
+  // 배송 요청사항 처리: 직접 입력인 경우 customDeliveryRequest 사용
+  const finalDeliveryRequest =
+    deliveryAddress.deliveryRequest === 'custom'
+      ? customDeliveryRequest.value
+      : deliveryAddress.deliveryRequest
+
+  paymentStore.setDeliveryInfo({
+    recipientName: recipientInfo.recipientName,
+    recipientPhone: recipientInfo.recipientPhone,
+    addressId: selectedAddressId.value,
+    address: deliveryAddress.address,
+    detailAddress: deliveryAddress.detailAddress,
+    deliveryRequest: finalDeliveryRequest,
+  })
+
+  // Checkout 페이지로 이동
+  router.push({ name: 'Checkout' })
 }
 
-// 입력 필드 변경 시 유효성 검사
-const onInputChange = () => {
-  validateForm()
-}
-
-// 컴포넌트 마운트 시 기본 주소 설정
-const initializeDefaultAddress = () => {
-  if (!savedAddresses.value || savedAddresses.value.length === 0) {
-    return
-  }
-  const defaultAddress = savedAddresses.value.find((addr) => addr.isDefault)
-  if (defaultAddress) {
-    selectedAddressId.value = defaultAddress.id.toString()
-    onSelectAddress()
-  }
-}
-
-onMounted(async () => {
+// 경매 정보 로드
+const loadAuctionDetails = async (id) => {
   try {
-    initializeDefaultAddress()
+    const response = await getAuctionDetails(id)
+    auctionDetails.value = response.data
+    // Pinia 스토어에 경매 컨텍스트 저장
+    paymentStore.setAuctionContext(id, response.data)
   } catch (error) {
-    console.error('배송지 목록 로드 실패:', error)
-    savedAddresses.value = []
+    console.error('경매 정보 로드 실패:', error)
+    openDialog('경매 정보를 불러올 수 없습니다.')
+    router.push({ name: 'Home' })
   }
+}
+
+// 초기화
+onMounted(async () => {
+  // 1. Query parameter에서 auctionId 확인
+  const queryAuctionId = route.query.auctionId
+
+  if (queryAuctionId) {
+    auctionId.value = queryAuctionId
+    await loadAuctionDetails(queryAuctionId)
+  } else {
+    // 2. Pinia 스토어에서 복원 시도
+    paymentStore.restoreFromSession()
+    if (paymentStore.auctionId) {
+      auctionId.value = paymentStore.auctionId
+      // API로 경매 상세 정보 다시 로드
+      await loadAuctionDetails(paymentStore.auctionId)
+    } else {
+      // 경매 ID가 없으면 홈으로 리다이렉트
+      openDialog('잘못된 접근입니다.')
+      router.push({ name: 'Home' })
+      return
+    }
+  }
+
+  // 3. 사용자 정보 로드
+  loadUserInfo()
+
+  // 4. 배송지 목록 로드
+  await loadAddresses()
+
+  // 5. CheckoutPage에서 돌아온 경우 배송 정보 복원
+  if (paymentStore.deliveryInfo && paymentStore.deliveryInfo.recipientName) {
+    // 받는 사람 정보 복원
+    recipientInfo.recipientName = paymentStore.deliveryInfo.recipientName
+    recipientInfo.recipientPhone = paymentStore.deliveryInfo.recipientPhone
+
+    // 배송지 정보 복원
+    deliveryAddress.address = paymentStore.deliveryInfo.address
+    deliveryAddress.detailAddress = paymentStore.deliveryInfo.detailAddress || ''
+    deliveryAddress.deliveryRequest = paymentStore.deliveryInfo.deliveryRequest || ''
+
+    // 배송지 ID로 선택 상태 복원
+    if (paymentStore.deliveryInfo.addressId) {
+      selectedAddressId.value = paymentStore.deliveryInfo.addressId
+    }
+
+    // "직접 입력" 상태 복원
+    const standardRequests = [
+      '문앞에 놓아주세요',
+      '경비실에 맡겨주세요',
+      '택배함에 넣어주세요',
+      '직접 받겠습니다',
+      '부재 시 연락주세요',
+    ]
+
+    if (
+      deliveryAddress.deliveryRequest &&
+      !standardRequests.includes(deliveryAddress.deliveryRequest)
+    ) {
+      // 직접 입력된 배송 요청사항인 경우
+      customDeliveryRequest.value = deliveryAddress.deliveryRequest
+      deliveryAddress.deliveryRequest = 'custom'
+      showCustomRequestInput.value = true
+    }
+  }
+})
+
+// 사용자 정보 변경 감지
+watch(
+  () => userStore.currentUser,
+  (newUser) => {
+    if (newUser) {
+      loadUserInfo()
+      loadAddresses()
+    }
+  },
+)
+
+// 페이지 이탈 시 처리 (CheckoutPage가 아닌 다른 페이지로 이동 시)
+onBeforeRouteLeave((to, _from, next) => {
+  // Checkout 페이지로 이동하는 경우는 제외 (정상적인 결제 프로세스)
+  if (to.name !== 'Checkout') {
+    console.log('결제 프로세스 이탈 감지 (UserInfoPage) - paymentStore 초기화')
+    paymentStore.reset()
+  }
+  next()
+})
+
+// 브라우저 종료/새로고침 시 처리
+onBeforeUnmount(() => {
+  // CheckoutPage로 이동하지 않는 경우를 대비한 추가 정리
+  // (실제로는 onBeforeRouteLeave에서 처리되지만, 안전장치로 추가)
 })
 </script>
 
@@ -208,26 +370,25 @@ onMounted(async () => {
     <div class="row justify-content-center">
       <div class="col-lg-8">
         <!-- 구매 상품 정보 -->
-        <section class="mb-5">
+        <section class="mb-5" v-if="auctionDetails">
           <h4 class="mb-4">구매 상품</h4>
           <div class="border p-4 bg-light">
             <div class="d-flex align-items-start">
               <img
                 class="product-img mr-4"
-                :src="props.product.images[0]"
-                :alt="props.product.name"
+                :src="auctionDetails.imageUrl || '/images/fantry_logo.png'"
+                :alt="auctionDetails.itemName"
               />
               <div class="flex-grow-1">
-                <h5 class="mb-2 font-weight-bold">{{ props.product.name }}</h5>
+                <h5 class="mb-2 font-weight-bold">{{ auctionDetails.itemName }}</h5>
                 <div class="mb-3">
                   <div class="d-flex align-items-center mb-1">
-                    <span class="badge badge-success mr-2">{{ props.product.condition }}</span>
+                    <span class="badge badge-success mr-2">{{ auctionDetails.productGrade }}</span>
                   </div>
-                  <p class="text-muted small mb-1">판매자: {{ props.product.seller }}</p>
                 </div>
                 <div class="price-info">
                   <h4 class="text-primary font-weight-bold mb-0">
-                    {{ props.product.price.toLocaleString() }}원
+                    {{ auctionDetails.currentPrice?.toLocaleString() }}원
                   </h4>
                 </div>
               </div>
@@ -236,10 +397,14 @@ onMounted(async () => {
         </section>
 
         <form @submit.prevent="proceedToCheckout">
-          <!-- 주문자 정보 -->
+          <!-- 주문자 정보 (읽기 전용) -->
           <section class="mb-5">
             <h4 class="mb-4">주문자 정보</h4>
-            <div class="border p-4">
+            <div class="border p-4 bg-light">
+              <p class="text-muted small mb-3">
+                <i class="bi bi-info-circle"></i> 주문자 정보는 로그인된 계정 정보로 자동
+                입력됩니다.
+              </p>
               <div class="row">
                 <div class="col-md-6 mb-3">
                   <label for="name" class="form-label"
@@ -247,12 +412,11 @@ onMounted(async () => {
                   >
                   <input
                     id="name"
-                    v-model="deliveryInfo.name"
+                    v-model="userInfo.name"
                     type="text"
-                    class="form-control"
-                    placeholder="이름을 입력하세요"
-                    required
-                    @input="onInputChange"
+                    class="form-control bg-light"
+                    disabled
+                    readonly
                   />
                 </div>
                 <div class="col-md-6 mb-3">
@@ -261,27 +425,25 @@ onMounted(async () => {
                   >
                   <input
                     id="phone"
+                    v-model="userInfo.phone"
                     type="tel"
-                    class="form-control"
-                    placeholder="010-0000-0000"
-                    maxlength="13"
-                    required
-                    @input="onPhoneInput"
+                    class="form-control bg-light"
+                    disabled
+                    readonly
                   />
                 </div>
               </div>
-              <div class="mb-3">
+              <div class="mb-0">
                 <label for="email" class="form-label"
                   >이메일 <span class="text-danger">*</span></label
                 >
                 <input
                   id="email"
-                  v-model="deliveryInfo.email"
+                  v-model="userInfo.email"
                   type="email"
-                  class="form-control"
-                  placeholder="example@email.com"
-                  required
-                  @input="onInputChange"
+                  class="form-control bg-light"
+                  disabled
+                  readonly
                 />
               </div>
             </div>
@@ -289,47 +451,71 @@ onMounted(async () => {
 
           <!-- 배송지 정보 -->
           <section class="mb-5">
-            <h4 class="mb-4">배송지 정보</h4>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+              <h4 class="mb-0">배송지 정보</h4>
+              <button
+                type="button"
+                class="btn btn-outline-primary btn-sm"
+                @click="showAddAddressModal = true"
+              >
+                <i class="bi bi-plus-circle"></i> 새 배송지 추가
+              </button>
+            </div>
             <div class="border p-4">
-              <!-- 배송지 선택 리스트 -->
+              <!-- 저장된 배송지 목록 -->
               <div class="mb-4">
-                <label class="form-label">배송지 선택</label>
+                <label class="form-label font-weight-bold">배송지 선택</label>
                 <div
                   v-if="savedAddresses && savedAddresses.length > 0"
-                  class="d-flex flex-column"
+                  class="address-list"
                   style="gap: 12px"
                 >
                   <div
                     v-for="address in savedAddresses"
-                    :key="address.id"
+                    :key="address.addressId"
                     class="border p-3 address-item"
                     :class="{
-                      'border-primary bg-light': selectedAddressId === address.id.toString(),
+                      'border-primary bg-light': selectedAddressId === address.addressId,
                     }"
-                    style="cursor: pointer; transition: all 0.2s"
-                    @click="selectSavedAddress(address.id)"
+                    style="cursor: pointer; transition: all 0.2s; border-radius: 8px"
+                    @click="selectAddress(address.addressId)"
                   >
                     <div class="d-flex align-items-center mb-2" style="gap: 10px">
                       <input
                         type="radio"
-                        :value="address.id.toString()"
+                        :id="`addr-${address.addressId}`"
+                        :value="address.addressId"
                         v-model="selectedAddressId"
                         style="cursor: pointer"
-                        @change="onSelectAddress"
+                        @change="selectAddress(address.addressId)"
                       />
-                      <span class="font-weight-bold">{{ address.name }}</span>
-                      <span v-if="address.isDefault" class="badge badge-primary">기본배송지</span>
+                      <label :for="`addr-${address.addressId}`" class="font-weight-bold mb-0">{{
+                        address.alias
+                      }}</label>
+                      <span v-if="address.isDefault === '1'" class="badge badge-primary"
+                        >기본배송지</span
+                      >
                     </div>
                     <div class="ml-4">
-                      <p class="text-muted small mb-1">{{ address.address }}</p>
-                      <p class="text-muted small mb-0">{{ address.phone }}</p>
+                      <p class="mb-1">
+                        <strong>{{ address.recipientName }}</strong> /
+                        {{ address.recipientTel }}
+                      </p>
+                      <p class="text-muted small mb-0">
+                        {{ address.roadAddress }}
+                        {{ address.detailAddress }}
+                      </p>
                     </div>
                   </div>
                 </div>
-                <div v-else class="border p-4 text-center text-muted">
-                  <p class="mb-0">저장된 배송지가 없습니다. 아래에서 새 주소를 입력해주세요.</p>
+                <div v-else class="border p-4 text-center text-muted bg-light">
+                  <i class="bi bi-inbox" style="font-size: 2rem"></i>
+                  <p class="mb-2 mt-2">저장된 배송지가 없습니다.</p>
+                  <p class="small mb-0">'새 배송지 추가' 버튼을 클릭하여 배송지를 등록해주세요.</p>
                 </div>
               </div>
+
+              <!-- 받는 사람 정보 -->
               <div class="row mb-3">
                 <div class="col-md-6">
                   <label for="recipientName" class="form-label"
@@ -337,12 +523,10 @@ onMounted(async () => {
                   >
                   <input
                     id="recipientName"
-                    v-model="deliveryInfo.recipientName"
+                    v-model="recipientInfo.recipientName"
                     type="text"
-                    class="form-control"
-                    placeholder="받는 사람 이름"
-                    required
-                    @input="onInputChange"
+                    class="form-control bg-light"
+                    readonly
                   />
                 </div>
                 <div class="col-md-6">
@@ -351,52 +535,46 @@ onMounted(async () => {
                   >
                   <input
                     id="recipientPhone"
+                    v-model="recipientInfo.recipientPhone"
                     type="tel"
-                    class="form-control"
-                    placeholder="010-0000-0000"
-                    maxlength="13"
-                    required
-                    @input="onRecipientPhoneInput"
+                    class="form-control bg-light"
+                    readonly
                   />
                 </div>
               </div>
-              <div class="d-flex mb-3">
-                <input
-                  id="zipcode"
-                  v-model="deliveryInfo.zipcode"
-                  class="form-control col-3 mr-2"
-                  type="text"
-                  placeholder="우편번호"
-                  required
-                />
-                <button type="button" class="btn btn-primary" @click="onClickAddressSearch">
-                  주소 검색
-                </button>
-              </div>
+
+              <!-- 배송 주소 (읽기 전용) -->
               <div class="mb-3">
+                <label for="address" class="form-label"
+                  >주소 <span class="text-danger">*</span></label
+                >
                 <input
-                  v-model="deliveryInfo.address"
-                  class="form-control"
+                  id="address"
+                  v-model="deliveryAddress.address"
+                  class="form-control bg-light"
                   type="text"
-                  placeholder="주소"
-                  required
+                  readonly
                 />
               </div>
               <div class="mb-3">
+                <label for="detailAddress" class="form-label">상세주소</label>
                 <input
-                  v-model="deliveryInfo.detailAddress"
-                  class="form-control"
+                  id="detailAddress"
+                  v-model="deliveryAddress.detailAddress"
+                  class="form-control bg-light"
                   type="text"
-                  placeholder="상세주소를 입력하세요"
-                  @input="onInputChange"
+                  readonly
                 />
               </div>
-              <div class="mb-3">
+
+              <!-- 배송 요청사항 -->
+              <div class="mb-0">
                 <label for="deliveryRequest" class="form-label">배송 요청사항</label>
                 <select
                   id="deliveryRequest"
-                  v-model="deliveryInfo.deliveryRequest"
+                  v-model="deliveryAddress.deliveryRequest"
                   class="form-control delivery-select"
+                  @change="onDeliveryRequestChange"
                 >
                   <option value="">배송 요청사항을 선택하세요</option>
                   <option value="문앞에 놓아주세요">문앞에 놓아주세요</option>
@@ -404,7 +582,20 @@ onMounted(async () => {
                   <option value="택배함에 넣어주세요">택배함에 넣어주세요</option>
                   <option value="직접 받겠습니다">직접 받겠습니다</option>
                   <option value="부재 시 연락주세요">부재 시 연락주세요</option>
+                  <option value="custom">직접 입력</option>
                 </select>
+
+                <!-- 직접 입력 필드 -->
+                <div v-if="showCustomRequestInput" class="mt-3">
+                  <input
+                    v-model="customDeliveryRequest"
+                    type="text"
+                    class="form-control"
+                    placeholder="배송 요청사항을 입력해주세요 (예: 초인종 누르지 말아주세요)"
+                    maxlength="100"
+                  />
+                  <small class="text-muted">최대 100자까지 입력 가능합니다</small>
+                </div>
               </div>
             </div>
           </section>
@@ -422,6 +613,108 @@ onMounted(async () => {
             <p class="text-muted mt-2 small">* 필수 항목을 모두 입력해주세요</p>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 새 배송지 추가 모달 -->
+  <div
+    v-if="showAddAddressModal"
+    class="modal fade show d-block"
+    tabindex="-1"
+    style="background-color: rgba(0, 0, 0, 0.5)"
+  >
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">새 배송지 추가</h5>
+          <button type="button" class="close" @click="closeAddressModal">
+            <span>&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <form @submit.prevent="saveNewAddress">
+            <div class="mb-3">
+              <label for="alias" class="form-label"
+                >배송지 별칭 <span class="text-danger">*</span></label
+              >
+              <input
+                id="alias"
+                v-model="newAddress.alias"
+                type="text"
+                class="form-control"
+                placeholder="예: 집, 회사, 학교"
+                required
+              />
+            </div>
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="newRecipientName" class="form-label"
+                  >받는 사람 <span class="text-danger">*</span></label
+                >
+                <input
+                  id="newRecipientName"
+                  v-model="newAddress.recipientName"
+                  type="text"
+                  class="form-control"
+                  placeholder="받는 사람 이름"
+                  required
+                />
+              </div>
+              <div class="col-md-6">
+                <label for="newRecipientTel" class="form-label"
+                  >받는 사람 연락처 <span class="text-danger">*</span></label
+                >
+                <input
+                  id="newRecipientTel"
+                  type="tel"
+                  class="form-control"
+                  placeholder="010-0000-0000"
+                  maxlength="13"
+                  required
+                  @input="onNewAddressPhoneInput"
+                />
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">주소 <span class="text-danger">*</span></label>
+              <div class="d-flex">
+                <input
+                  v-model="newAddress.roadAddress"
+                  class="form-control mr-2"
+                  type="text"
+                  placeholder="주소"
+                  required
+                  readonly
+                />
+                <button type="button" class="btn btn-primary" @click="searchNewAddress">
+                  주소 검색
+                </button>
+              </div>
+            </div>
+            <div class="mb-3">
+              <input
+                v-model="newAddress.detailAddress"
+                class="form-control"
+                type="text"
+                placeholder="상세주소를 입력하세요"
+              />
+            </div>
+            <div class="form-check mb-3">
+              <input
+                id="isDefault"
+                v-model="newAddress.isDefault"
+                type="checkbox"
+                class="form-check-input"
+              />
+              <label for="isDefault" class="form-check-label">기본 배송지로 설정</label>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" @click="closeAddressModal">취소</button>
+          <button type="button" class="btn btn-primary" @click="saveNewAddress">저장</button>
+        </div>
       </div>
     </div>
   </div>
@@ -460,8 +753,22 @@ onMounted(async () => {
   appearance: none;
 }
 
+.address-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.address-item {
+  transition: all 0.2s ease;
+}
+
 .address-item:hover {
   border-color: #d19c97 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.address-item.border-primary {
+  background-color: #f8f9fa;
 }
 
 /* 반응형 */

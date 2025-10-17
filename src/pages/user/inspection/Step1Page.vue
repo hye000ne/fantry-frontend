@@ -7,9 +7,11 @@ import SelectedArtistModal from '@/pages/user/inspection/SelectedArtistModal.vue
 import SelectedAlbumModal from '@/pages/user/inspection/SelectedAlbumModal.vue'
 import { useInspectionStore } from '@/stores/inspectionStore'
 import { storeToRefs } from 'pinia'
+import { useAlertDialog } from '@/composables/useAlertDialog.js';
 
 const router = useRouter()
 const inspectionStore = useInspectionStore()
+const {showAlert} = useAlertDialog();
 
 // Store 값
 const {
@@ -171,7 +173,7 @@ const addTag = () => {
       hashtags.value.push(newTag)
       tagInput.value = ''
     } else {
-      alert('해시태그는 최대 5개까지 추가할 수 있습니ㅏㄷ.')
+      showAlert('알림', '해시태그는 최대 5개까지 추가할 수 있습니다.')
     }
   }
 }
