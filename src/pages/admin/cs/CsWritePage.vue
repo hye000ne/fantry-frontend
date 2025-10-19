@@ -4,9 +4,11 @@ import { useRoute, useRouter } from 'vue-router';
 import { createNotice } from '@/api/adminNotice.js';
 import { createFaq } from '@/api/adminFaq.js';
 import CommonEditor from '@/components/common/organisms/CommonEditor.vue';
+import { useAlertDialog } from '@/composables/useAlertDialog';
 
 const route = useRoute();
 const router = useRouter();
+const { showAlert: showAlertDialog } = useAlertDialog();
 
 const type = ref('');
 const post = ref({
@@ -55,7 +57,7 @@ const listPageName = computed(() => {
 
 async function handleSubmit() {
   if (!post.value.title || !post.value.content) {
-    alert('제목과 내용을 모두 입력해주세요.');
+    showAlertDialog('알림', '제목과 내용을 모두 입력해주세요.');
     return;
   }
 
@@ -70,18 +72,18 @@ async function handleSubmit() {
         break;
       case 'inquiry':
         // TODO: Admin Inquiry Create API does not exist yet.
-        alert('문의 등록 API가 아직 구현되지 않았습니다.');
+        showAlertDialog('오류', '문의 등록 API가 아직 구현되지 않았습니다.');
         return;
       default:
-        alert('잘못된 타입입니다.');
+        showAlertDialog('오류', '잘못된 타입입니다.');
         return;
     }
-    alert('성공적으로 등록되었습니다.');
+    showAlertDialog('성공', '성공적으로 등록되었습니다.');
     router.push({ name: listPageName.value });
   } catch (e) {
     console.error('등록 실패:', e);
     error.value = '등록 중 오류가 발생했습니다.';
-    alert(error.value);
+    showAlertDialog('오류', error.value);
   }
 }
 
@@ -92,7 +94,7 @@ function goToList() {
 onMounted(() => {
   type.value = route.query.type;
   if (!['notice', 'faq', 'inquiry'].includes(type.value)) {
-    alert('잘못된 접근입니다.');
+    showAlertDialog('경고', '잘못된 접근입니다.');
     router.back();
   }
 });

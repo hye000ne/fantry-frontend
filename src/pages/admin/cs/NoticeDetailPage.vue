@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getNoticeById, deleteNotice } from '@/api/adminNotice.js';
 import LoadingSpinner from '@/components/common/atoms/LoadingSpinner.vue';
+import { useAlertDialog } from '@/composables/useAlertDialog';
 
 const route = useRoute();
 const router = useRouter();
@@ -11,6 +12,7 @@ const noticeId = Number(route.params.noticeId);
 const notice = ref(null);
 const loading = ref(true);
 const error = ref(null);
+const { showAlert: showAlertDialog } = useAlertDialog();
 
 async function fetchNotice() {
   try {
@@ -29,11 +31,11 @@ async function handleDelete() {
   if (confirm('정말로 이 공지사항을 삭제하시겠습니까?')) {
     try {
       await deleteNotice(noticeId);
-      alert('공지사항이 삭제되었습니다.');
+      showAlertDialog('성공', '공지사항이 삭제되었습니다.');
       router.push({ name: 'AdminNoticeList' });
     } catch (e) {
       console.error('공지사항 삭제 실패:', e);
-      alert('삭제 중 오류가 발생했습니다.');
+      showAlertDialog('오류', '삭제 중 오류가 발생했습니다.');
     }
   }
 }

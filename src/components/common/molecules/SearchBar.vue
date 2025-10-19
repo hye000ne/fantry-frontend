@@ -22,9 +22,10 @@ const onSearch = () => {
     <input
       type="text"
       class="form-control"
-      placeholder="검색어를 입력해주세요."
+      placeholder="(카테고리, 그룹명, 이름)"
       v-model="modelValue"
       v-bind="$attrs"
+      @keyup.enter="onSearch"
     />
     <SearchButton @click="onSearch" />
   </div>

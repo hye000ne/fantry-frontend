@@ -3,6 +3,9 @@ import { ref, onMounted, computed, nextTick, watch } from 'vue'
 import BaseDataTable from '@/components/common/datatable/BaseDataTable.vue'
 import { getArtists, createArtist, updateArtist, deleteArtist } from '@/api/catalog'
 import { useModal } from '@/composables/useModal'
+import { useAlertDialog } from '@/composables/useAlertDialog.js'
+
+const { showAlert } = useAlertDialog()
 
 // --- 상태 관리 ---
 const keyword = ref('')
@@ -82,7 +85,7 @@ const loadArtists = async () => {
     allArtists.value = await getArtists()
     console.log('Artists loaded:', allArtists.value)
   } catch (e) {
-    alert(e.message || '아티스트 목록 조회에 실패했습니다.')
+    showAlert(e.message || '아티스트 목록 조회에 실패했습니다.')
     allArtists.value = []
   } finally {
     loading.value = false
@@ -108,21 +111,21 @@ const handleDelete = async (artist) => {
   if (!confirm(`'${artist.nameKo}' 아티스트를 정말 삭제하시겠습니까?`)) return
   try {
     await deleteArtist(artist.artistId)
-    alert(`'${artist.nameKo}' 아티스트가 삭제되었습니다.`)
+    showAlert('알림', `'${artist.nameKo}' 아티스트가 삭제되었습니다.`)
     await loadArtists()
   } catch (e) {
-    alert(e.message || '삭제 처리 중 오류가 발생했습니다.')
+    showAlert('오류', e.message || '삭제 처리 중 오류가 발생했습니다.')
   }
 }
 
 const saveArtist = async () => {
   // 저장 전 유효성 검사
   if (!validation.value.nameKo.isValid || !validation.value.nameEn.isValid) {
-    alert('입력 값을 확인해주세요.')
+    showAlert('알림', '입력 값을 확인해주세요.')
     return
   }
   if (!selectedArtist.value.nameKo || !selectedArtist.value.nameEn || !selectedArtist.value.groupType) {
-    alert('모든 필수 항목을 입력해주세요.')
+    showAlert('알림', '모든 필수 항목을 입력해주세요.')
     return
   }
   try {
@@ -133,15 +136,15 @@ const saveArtist = async () => {
     }
     if (isEditMode.value) {
       await updateArtist(selectedArtist.value.artistId, payload)
-      alert(`'${payload.nameKo}' 아티스트가 수정되었습니다.`)
+      showAlert('알림', `'${payload.nameKo}' 아티스트가 수정되었습니다.`)
     } else {
       await createArtist(payload)
-      alert(`'${payload.nameKo}' 아티스트가 추가되었습니다.`)
+      showAlert('알림', `'${payload.nameKo}' 아티스트가 추가되었습니다.`)
     }
     hide()
     await loadArtists()
   } catch (e) {
-    alert(e.message || '저장 처리 중 오류가 발생했습니다.')
+    showAlert('오류', e.message || '저장 처리 중 오류가 발생했습니다.')
   }
 }
 

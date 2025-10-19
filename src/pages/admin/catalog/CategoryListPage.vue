@@ -3,6 +3,9 @@ import { ref, onMounted, computed, nextTick, watch } from 'vue'
 import BaseDataTable from '@/components/common/datatable/BaseDataTable.vue'
 import { getGoodsCategories, createGoodsCategory, updateGoodsCategory, deleteGoodsCategory } from '@/api/catalog'
 import { useModal } from '@/composables/useModal'
+import { useAlertDialog } from '@/composables/useAlertDialog.js'
+
+const { showAlert } = useAlertDialog()
 
 // --- 상태 관리 ---
 const keyword = ref('')
@@ -60,7 +63,7 @@ const loadCategories = async () => {
   try {
     allCategories.value = await getGoodsCategories()
   } catch (e) {
-    alert(e.message || '카테고리 목록 조회에 실패했습니다.')
+    showAlert('오류', e.message || '카테고리 목록 조회에 실패했습니다.')
     allCategories.value = []
   } finally {
     loading.value = false
@@ -120,21 +123,21 @@ const handleDelete = async (category) => {
 
   try {
     await deleteGoodsCategory(category.GoodsCategoryId)
-    alert(`'${category.name}' 카테고리가 삭제되었습니다.`)
+    showAlert('알림', `'${category.name}' 카테고리가 삭제되었습니다.`)
     await loadCategories()
   } catch (e) {
-    alert(e.message || '삭제 처리 중 오류가 발생했습니다.')
+    showAlert('오류', e.message || '삭제 처리 중 오류가 발생했습니다.')
   }
 }
 
 const saveCategory = async () => {
   // 저장 전 유효성 검사
   if (!validation.value.code.isValid || !validation.value.name.isValid) {
-    alert('입력 값을 확인해주세요.')
+    showAlert('알림', '입력 값을 확인해주세요.')
     return
   }
   if (!selectedCategory.value.name || !selectedCategory.value.code) {
-    alert('코드와 이름을 모두 입력해주세요.')
+    showAlert('알림', '코드와 이름을 모두 입력해주세요.')
     return
   }
 
@@ -145,15 +148,15 @@ const saveCategory = async () => {
     }
     if (isEditMode.value) {
       await updateGoodsCategory(selectedCategory.value.GoodsCategoryId, payload)
-      alert(`'${payload.name}' 카테고리가 수정되었습니다.`)
+      showAlert('알림', `'${payload.name}' 카테고리가 수정되었습니다.`)
     } else {
       await createGoodsCategory(payload)
-      alert(`'${payload.name}' 카테고리가 추가되었습니다.`)
+      showAlert('알림', `'${payload.name}' 카테고리가 추가되었습니다.`)
     }
     hide()
     await loadCategories()
   } catch (e) {
-    alert(e.message || '저장 처리 중 오류가 발생했습니다.')
+    showAlert('오류', e.message || '저장 처리 중 오류가 발생했습니다.')
   }
 }
 

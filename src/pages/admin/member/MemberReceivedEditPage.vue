@@ -83,7 +83,9 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { getReportDetail, updateReceiveReport } from '@/api/report';
+import { useAlertDialog } from '@/composables/useAlertDialog';
 
+const { showAlert: showDialog } = useAlertDialog();
 const router = useRouter();
 
 const report = ref(null);
@@ -121,7 +123,7 @@ function formatReportStatus(status) {
 onMounted(async () => {
   reportId = router.currentRoute.value.params.reportId;
   if (!reportId) {
-    alert('유효하지 않은 접근입니다.');
+    showDialog("🚫오류", "유효하지 않은 접근입니다.");
     router.back();
     return;
   }
@@ -132,7 +134,7 @@ onMounted(async () => {
     report.value = response.data.report;    
   } catch (error) {
     console.error(error);
-    alert('신고 정보를 불러오는데 실패했습니다.');
+    showDialog("🚫오류", "신고 정보를 불러오는데 실패했습니다.");
   } finally {
     loading.value = false;
   }
@@ -141,7 +143,7 @@ onMounted(async () => {
 // 신고 상태 변경
 async function updateReportStatus() {
   if (!rejectedComment.value && newStatus.value === 'REJECTED') {
-    alert('반려 사유를 입력해주세요.');
+    showDialog("⚠️주의", "반려 사유를 입력해주세요.");
     return;
   }
 
@@ -160,11 +162,11 @@ async function updateReportStatus() {
       throw new Error('신고 상태 업데이트 실패');
     }
 
-    alert('신고 상태가 성공적으로 업데이트되었습니다.');
+    showDialog("✅안내", "신고 상태가 성공적으로 업데이트되었습니다.");
     router.push({ name: 'AdminReportReceiveList' });  // 목록 페이지로 돌아감
   } catch (error) {
     console.error(error);
-    alert('신고 상태 업데이트 실패');
+    showDialog("🚫오류", "신고 상태 업데이트 실패");
   }
 }
 </script>

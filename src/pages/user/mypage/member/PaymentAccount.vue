@@ -5,6 +5,9 @@
 import { ref, onMounted } from 'vue';
 import { getAccountsMember, addAccount, deleteAccount } from '@/api/account.js';
 import { useUserStore } from '@/stores/userStore';
+import { useAlertDialog } from '@/composables/useAlertDialog.js';
+  
+const { showAlert } = useAlertDialog();
 
 // --- 상태 관리 ---
 const currentMemberId = ref('');
@@ -45,7 +48,7 @@ const fetchAccounts = async () => {
 // --- 계좌 등록 함수 (추가) ---
 const handleAddAccount = async () => {
     if (!newAccountPayload.value.bankName || !newAccountPayload.value.accountName ){
-        alert('모든 필드를 입력해주세요.');
+        showAlert('⚠️주의', '모든 필드를 입력해주세요.');
         return;
     }
     
@@ -66,12 +69,12 @@ const handleAddAccount = async () => {
         
         await addAccount(payload); 
 
-        alert('✅ 계좌가 성공적으로 등록되었습니다.');
+        showAlert("✅안내", "계좌가 성공적으로 등록되었습니다.");
         isAddingNewAccount.value = false;
         newAccountPayload.value = { bankName: '', accountName: '', isActive: '0', isRefundable: '0' };
         await fetchAccounts();  //계좌 목록 새로고침
     } catch (e) {
-        alert('계좌 등록에 실패했습니다. 다시 시도해 주세요.');
+        showAlert("🚫오류", "계좌 등록에 실패했습니다. 다시 시도해 주세요.");
         console.error('Add Account Error:', e);
     } finally {
         isLoading.value = false;
@@ -87,10 +90,10 @@ const handleDeleteAccount = async (accountId) => {
     isLoading.value = true;
     try {
         await deleteAccount(accountId);
-        alert('🗑️ 계좌가 성공적으로 삭제되었습니다.');
+        showAlert("✅안내", "계좌가 성공적으로 삭제되었습니다.");
         await fetchAccounts();  //계좌 목록 새로고침
     } catch (e) {
-        alert('계좌 삭제에 실패했습니다. 다시 시도해 주세요.');
+        showAlert("🚫오류", "계좌 삭제에 실패했습니다. 다시 시도해 주세요.");
         console.error('Delete Account Error:', e);
     } finally {
         isLoading.value = false;

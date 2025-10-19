@@ -6,11 +6,11 @@ import { useModal } from '@/composables/useModal'
 import { storeToRefs } from 'pinia'
 import { getMemberByToken } from '@/api/member'
 import openAddressSearch from '@/module/kakaoAddressSearch'
-
-//TODO : 회원 주소/계좌 정보  API 구현 시 불러오기 로직 완성
+import { useAlertDialog } from '@/composables/useAlertDialog.js';
 
 const router = useRouter()
 const inspectionStore = useInspectionStore()
+const {showAlert} = useAlertDialog();
 
 // Store 값
 const { uploadedFiles, shippingAddress, shippingAddressDetail, bankName, bankAccount, completedStep } = storeToRefs(inspectionStore)
@@ -31,7 +31,7 @@ const fetchUserData = async () => {
     return memberInfo.value
   } catch (error) {
     console.error('회원 정보 불러오기 실패:', error)
-    alert('저장된 회원 정보를 불러오는 데 실패했습니다.')
+    showAlert('오류', '저장된 회원 정보를 불러오는 데 실패했습니다.')
     return null
   }
 }
@@ -43,20 +43,20 @@ const onFileChange = (event) => {
   for (const f of newFiles) {
     // 유효성 검사
     if (uploadedFiles.value.length >= 10) {
-      alert('이미지는 최대 10개까지 등록할 수 있습니다.')
+      showAlert('알림', '이미지는 최대 10개까지 등록할 수 있습니다.')
       break
     }
 
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png']
 
     if (!allowedTypes.includes(f.type)) {
-      alert(`'${f.name}' 파일은 지원하지 않는 형식입니다. (JPG, PNG만 가능)`)
+      showAlert('알림', `'${f.name}' 파일은 지원하지 않는 형식입니다. (JPG, PNG만 가능)`)
       continue
     }
 
     const maxSize = 10 * 1024 * 1024 // 10MB
     if (f.size > maxSize) {
-      alert(`'${f.name}' 파일의 크기가 10MB를 초과합니다.`)
+      showAlert('알림', `'${f.name}' 파일의 크기가 10MB를 초과합니다.`)
       continue
     }
 
@@ -112,27 +112,27 @@ const onClickAddressSearch = () => {
 const validateAll = () => {
   // 이미지 검증
   if (uploadedFiles.value.length < 2) {
-    alert('이미지를 최소 2장(앞/뒤) 이상 등록해주세요.')
+    showAlert('알림', '이미지를 최소 2장(앞/뒤) 이상 등록해주세요.')
     return false
   }
 
   // 주소 검증
   if (!shippingAddress.value || !shippingAddress.value.trim()) {
-    alert('주소를 입력해주세요.')
+    showAlert('알림', '주소를 입력해주세요.')
     return false
   }
   if (!shippingAddressDetail.value || !shippingAddressDetail.value.trim()) {
-    alert('상세주소를 입력해주세요.')
+    showAlert('알림', '상세주소를 입력해주세요.')
     return false
   }
 
   // 계좌 검증
   if (!bankName.value || !bankName.value.trim()) {
-    alert('은행명을 입력해주세요.')
+    showAlert('알림', '은행명을 입력해주세요.')
     return false
   }
   if (!bankAccount.value || !bankAccount.value.trim()) {
-    alert('계좌번호를 입력해주세요.')
+    showAlert('알림', '계좌번호를 입력해주세요.')
     return false
   }
   return true
@@ -151,7 +151,7 @@ const goPrev = () => router.push('/inspection/step1')
 onMounted(async () => {
   initModal()
   if (completedStep.value < 1) {
-    alert('잘못된 접근입니다. 이전 단계를 먼저 완료해주세요.')
+    showAlert('경고', '잘못된 접근입니다. 이전 단계를 먼저 완료해주세요.')
     router.replace('/inspection/step1')
   } else {
     const member = await fetchUserData()

@@ -79,7 +79,9 @@
     import { ref, onMounted } from 'vue';
     import { useRoute, useRouter } from 'vue-router';
     import { getMemberDetail, deactiveateMember } from '@/api/member';
+    import { useAlertDialog } from '@/composables/useAlertDialog';
 
+    const { showAlert: showDialog } = useAlertDialog();
     const route = useRoute();
     const router = useRouter();
 
@@ -125,14 +127,14 @@
             try{
               const res = await deactiveateMember(member.value.id);
               if (res.status === 200) {
-                  alert('회원이 비활성화 되었습니다.');
+                  showDialog("✅안내", "회원이 비활성화 되었습니다.");
                   router.push({ name: 'AdminMemberList' });
               } else {
-                  alert('회원 삭제에 실패했습니다.');
+                  showDialog("🚫오류", "회원 삭제에 실패했습니다.");
               }
             } catch(error) {
               console.error('삭제 중 오류 발생:', error.message);
-              alert('회원 삭제 중 오류가 발생했습니다.');
+              showDialog("🚫오류", "회원 삭제 중 오류가 발생했습니다.");
             }
         }
     }

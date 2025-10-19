@@ -4,7 +4,7 @@ import { unwrap } from './InspectionHelper';
 
 /**
  * 공지사항 목록을 검색 조건에 따라 페이징하여 조회합니다. (관리자용)
- * @param {object} params - { page, size, sort, csTypeId, status, keyword }
+ * @param {object} params - { page, size, sort, noticeTypeId, status, keyword }
  * @returns {Promise<Page<NoticeSummaryResponse>>}
  */
 export const searchNotices = (params) => {
@@ -13,7 +13,7 @@ export const searchNotices = (params) => {
     size: params.size,
     sort: params.sort,
     status: params.status,
-    csTypeId: params.csTypeId,
+    noticeTypeId: params.noticeTypeId,
     keyword: params.keyword,
   };
 
@@ -42,7 +42,7 @@ export const getNoticeById = (noticeId) => {
 
 /**
  * 새로운 공지사항을 등록합니다.
- * @param {object} noticeData - { csTypeId, title, content, status }
+ * @param {object} noticeData - { noticeTypeId, title, content, status }
  * @returns {Promise<NoticeDetailResponse>}
  */
 export const createNotice = (noticeData) => {
@@ -52,7 +52,7 @@ export const createNotice = (noticeData) => {
 /**
  * 특정 ID의 공지사항을 수정합니다.
  * @param {number} noticeId - 수정할 공지사항의 ID
- * @param {object} noticeData - { csTypeId, title, content, status }
+ * @param {object} noticeData - { noticeTypeId, title, content, status }
  * @returns {Promise<NoticeDetailResponse>}
  */
 export const updateNotice = (noticeId, noticeData) => {

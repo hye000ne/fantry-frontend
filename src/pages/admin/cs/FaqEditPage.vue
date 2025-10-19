@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { getFaqById, updateFaq, addFaqAttachments } from '@/api/adminFaq.js';
 import CommonEditor from '@/components/common/organisms/CommonEditor.vue';
 import LoadingSpinner from '@/components/common/atoms/LoadingSpinner.vue';
+import { useAlertDialog } from '@/composables/useAlertDialog';
 
 const route = useRoute();
 const router = useRouter();
@@ -13,6 +14,7 @@ const faq = ref(null);
 const loading = ref(true);
 const error = ref(null);
 const selectedFiles = ref([]);
+const { showAlert: showAlertDialog } = useAlertDialog();
 
 const csTypes = ref([
   { id: 1, name: '배송문의' },
@@ -71,11 +73,11 @@ async function handleSubmit() {
       await addFaqAttachments(faqId, selectedFiles.value);
     }
 
-    alert('FAQ가 성공적으로 수정되었습니다.');
+    showAlertDialog('성공', 'FAQ가 성공적으로 수정되었습니다.');
     router.push({ name: 'AdminFaqDetail', params: { faqId } });
   } catch (e) {
     console.error('FAQ 수정 실패:', e);
-    alert('수정 중 오류가 발생했습니다.');
+    showAlertDialog('오류', '수정 중 오류가 발생했습니다.');
   }
 }
 

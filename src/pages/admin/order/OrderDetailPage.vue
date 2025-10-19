@@ -79,6 +79,7 @@ import {
   requestRefund,
   completeRefund
 } from '@/api/order';
+import { useAlertDialog } from '@/composables/useAlertDialog';
 
 const props = defineProps({
   orderId: {
@@ -88,6 +89,7 @@ const props = defineProps({
 });
 
 const router = useRouter();
+const { showAlert: showAlertDialog } = useAlertDialog();
 
 const order = ref(null);
 const loading = ref(true);
@@ -124,17 +126,17 @@ async function updateStatus(statusKey) {
 
   const action = statusUpdateActions[statusKey];
   if (!action) {
-    alert('잘못된 상태 변경 요청입니다.');
+    showAlertDialog('오류', '잘못된 상태 변경 요청입니다.');
     return;
   }
 
   try {
     const response = await action(props.orderId);
-    alert('주문 상태가 성공적으로 변경되었습니다.');
+    showAlertDialog('성공', '주문 상태가 성공적으로 변경되었습니다.');
     await fetchOrderDetails(); // 상태 변경 후 데이터 다시 불러오기
   } catch (error) {
     console.error(`상태 변경 실패 (${statusKey}):`, error);
-    alert('상태 변경 중 오류가 발생했습니다.');
+    showAlertDialog('오류', '상태 변경 중 오류가 발생했습니다.');
   }
 }
 

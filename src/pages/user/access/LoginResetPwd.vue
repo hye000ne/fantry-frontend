@@ -1,6 +1,8 @@
 <script setup>
   import { reactive, watch } from 'vue';
+  import { useAlertDialog } from '@/composables/useAlertDialog';
 
+  const { showAlert: showDialog } = useAlertDialog();
   //바인드 변수 선언
   const formState = reactive({
     password: '',
@@ -39,7 +41,7 @@
     const isFormValid = Object.values(validation).every(v=>v.isValid);
 
     if(!isFormValid){
-      alert("모든 정보를 올바르게 입력해주세요.");
+      showDialog("⚠️주의", "모든 정보를 올바르게 입력해주세요.");
       return;
     }
 

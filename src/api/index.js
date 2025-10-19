@@ -77,7 +77,7 @@ apiClient.interceptors.response.use(
     const status = error.response?.status;
     const url = originalRequest?.url || '';
     const isAuthEndpoint = url.includes('/reissue') || url.includes('/login') || url.includes('/logout');
-    const shouldRefresh = !originalRequest._retry && !isAuthEndpoint && status === 401;
+    const shouldRefresh = !originalRequest._retry && !isAuthEndpoint && (status === 401 || status === 403);
     if (error.response && shouldRefresh) {
       originalRequest._retry = true;
       

@@ -44,11 +44,12 @@ export const getActiveAuctionsByBidder = (memberId) => {
  * @param {string} [params.saleType] - 판매 유형 (AUCTION, INSTANT_BUY)
  * @param {string} [params.saleStatus] - 판매 상태 (ACTIVE, SOLD 등)
  * @param {string} [params.artistGroupType] - 아티스트 그룹 유형
+ * @param {string} [params.keyword] - 검색 키워드
  * @returns {Promise<Page<AuctionSummaryResponse>>}
  */
-export const getAuctionList = ({ page, size, sort, saleType, saleStatus, artistGroupType }) => {
+export const getAuctionList = ({ page, size, sort, saleType, saleStatus, artistGroupType, keyword }) => {
     return publicApiClient.get('/auctions', {
-        params: { page, size, sort, saleType, saleStatus, artistGroupType }
+        params: { page, size, sort, saleType, saleStatus, artistGroupType, keyword }
     });
 }
 
@@ -152,4 +153,18 @@ export const changeAuctionSaleType = ({ auctionId, newSaleType }) => {
  */
 export const getAuctionByInspectionId = (productInspectionId) => {
     return apiClient.get(`/auctions/inspection/${productInspectionId}`);
+}
+
+/**
+ * 핫딜 상품 목록을 조회합니다. (활성 상태, 입찰 수 기준 정렬)
+ * <p>현재 활성(ACTIVE) 상태인 경매 중에서 입찰이 가장 많은 순서대로 상품을 조회합니다.
+ * @param {object} params - 페이징 정보
+ * @param {number} params.page - 조회할 페이지 번호 (0부터 시작)
+ * @param {number} params.size - 한 페이지에 보여줄 개수
+ * @returns {Promise<Page<AuctionSummaryResponse>>} 핫딜 상품 요약 정보의 페이지 객체
+ */
+export const getHotDealAuctions = ({ page, size }) => {
+    return publicApiClient.get('/auctions/hotdeal', {
+        params: { page, size }
+    });
 }

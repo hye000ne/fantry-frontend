@@ -6,7 +6,8 @@
   import { useRouter } from 'vue-router';
   import { useUserStore } from '@/stores/userStore';
   import { getOrders } from '@/api/order';
-import OrderDetailHistory from './OrderDetailHistory.vue';
+  import { currencyCol } from '@/composables/useDataTableColumns';
+  import OrderDetailHistory from './OrderDetailHistory.vue';
 
   const router = useRouter();
   const keyword = ref('');
@@ -36,15 +37,13 @@ import OrderDetailHistory from './OrderDetailHistory.vue';
       title: '상품명',
       sortable: false,
       render: (data, type, row) => {
-        const summary = data && data.length > 10 ? data.substring(0,10) + '...': data;
+        const summary = data && data.length > 6 ? data.substring(0,6) + '...': data;
         return `<span class="detail-link" data-detail-id="${row.ordersId}" style="color: blue; cursor: pointer; text-decoration: underline;">${summary}</span>`;
       }
     },
     {
-      data: 'price',
-      title: '주문금액',
-      sortable: true,
-      render: data => `${data.toLocaleString()}원`
+      ...currencyCol('price', '주문금액'),
+      sortable: true
     },
     {
       data: 'orderedAt',
@@ -98,7 +97,7 @@ import OrderDetailHistory from './OrderDetailHistory.vue';
       const [year, month, day, hour, minute] = dateArray;
       const date = new Date(year, month-1, day, hour, minute);
       const pad = (num) => String(num).padStart(2, '0');
-      return `${year}.${pad(month)}.${pad(day)} ${pad(hour)}:${pad(minute)}`;
+      return `${year}-${pad(month)}-${pad(day)}`;
   }
 
   //라벨 한글화
@@ -156,7 +155,7 @@ import OrderDetailHistory from './OrderDetailHistory.vue';
   //패치
   async function fetchOrders({page, size, sort, keyword}) {
     const res = await getOrders({
-      params: { memberId: currentMemberId.value }  
+      memberId: currentMemberId.value
     });
     let allOrders = res.data.content;
 
@@ -223,7 +222,7 @@ import OrderDetailHistory from './OrderDetailHistory.vue';
       if (refundLink) {
         const orderId = refundLink.dataset.orderId;
         if (orderId) {
-          router.push(`/refund/${orderId}`);    //서버 주소 변경
+          router.push({ name: 'RefundRequest', params: { orderId } });
         }
       }
     });
@@ -338,6 +337,30 @@ import OrderDetailHistory from './OrderDetailHistory.vue';
     top: 12px;
     right: 12px;
     z-index: 2;
+  }
+
+  /* 작은 화면에서 스크롤바 스타일링 */
+  :deep(table) {
+    white-space: nowrap !important;
+    padding: 8px 12px;
+  }
+
+  .table-responsive-wrapper::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .table-responsive-wrapper::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+  }
+
+  .table-responsive-wrapper::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+  }
+
+  .table-responsive-wrapper::-webkit-scrollbar-thumb:hover {
+    background: #555;
   }
 
 </style>

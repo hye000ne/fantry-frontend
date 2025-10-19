@@ -55,6 +55,8 @@ function setSort(col) {
   }
 }
 
+defineExpose({ load });
+
 const decoratedColumns = computed(() => props.columns.map(c => ({
   ...c,
   title: c.sortable ? `${c.title || c.data} ${sortIndicator(c)}` : (c.title || c.data),

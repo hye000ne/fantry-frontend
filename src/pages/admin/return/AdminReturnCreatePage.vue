@@ -47,7 +47,7 @@
 
 <script setup>
 import { ref } from 'vue';
-import { createAdminReturn } from '@/api/adminReturn';
+import { createAdminReturnRequest } from '@/api/adminReturn';
 import { useAlert } from '@/composables/useAlert';
 import { useRouter } from 'vue-router';
 
@@ -66,7 +66,7 @@ const form = ref({
 const createReturnRequest = async () => {
   isCreating.value = true;
   try {
-    await createAdminReturn(form.value);
+    await createAdminReturnRequest(form.value);
     showAlert('환불/반품 요청이 성공적으로 생성되었습니다.', 'success');
     router.push({ name: 'AdminReturnList' }); // 목록 페이지로 이동
   } catch (err) {
@@ -76,6 +76,8 @@ const createReturnRequest = async () => {
     isCreating.value = false;
   }
 };
+
+// Added a comment to trigger re-compilation
 </script>
 
 <style scoped lang="scss">

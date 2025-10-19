@@ -4,7 +4,9 @@ import { useRouter, useRoute } from 'vue-router'
 import { useModal } from '@/composables/useModal'
 import { getOnlineInspectionDetail, approveOnlineInspection, rejectOnlineInspection } from '@/api/adminInspection'
 import { useAdminInspectionStore } from '@/stores/adminInspectionStore'
+import { useAlertDialog } from '@/composables/useAlertDialog.js'
 
+const { showAlert } = useAlertDialog()
 const router = useRouter()
 const route = useRoute()
 const adminStore = useAdminInspectionStore()
@@ -49,7 +51,7 @@ async function fetchDetail(id) {
     console.log(detail.value)
   } catch (err) {
     console.error('검수 상세 조회 실패:', err)
-    alert(err.message || '데이터를 불러오는 데 실패했습니다.')
+    showAlert('오류', err.message || '데이터를 불러오는 데 실패했습니다.')
   } finally {
     loading.value = false
   }
@@ -57,16 +59,17 @@ async function fetchDetail(id) {
 
 // 1차 승인 처리
 const approve = async () => {
-  if (!confirm('정말로 승인 처리하시겠습니까?')) return
-  loading.value = true
+  const isConfirmed = await showAlert('확인', '정말로 승인 처리하시겠습니까?', true)
+
+  if (!isConfirmed) return
 
   try {
     await approveOnlineInspection(inspectionId.value)
-    alert('승인 처리가 완료되었습니다.')
+    showAlert('알림', '승인 처리가 완료되었습니다.')
     setTimeout(() => router.push('/admin/inspection/online'), 300)
   } catch (err) {
     console.error('승인 처리 실패:', err)
-    alert(err.message || '승인 처리 중 오류가 발생했습니다.')
+    showAlert('오류', err.message || '승인 처리 중 오류가 발생했습니다.')
   } finally {
     loading.value = false
   }
@@ -75,7 +78,7 @@ const approve = async () => {
 // 1차 반려 처리 (모달 제출 시)
 const reject = async () => {
   if (!rejectForm.rejectionReason || !rejectForm.rejectionReason.trim()) {
-    alert('반려 사유를 반드시 입력해야 합니다.')
+    showAlert('알림', '반려 사유를 반드시 입력해야 합니다.')
     return
   }
   loading.value = true
@@ -83,11 +86,11 @@ const reject = async () => {
     const reason = rejectForm.rejectionReason.trim()
     await rejectOnlineInspection(inspectionId.value, { rejectionReason: reason })
     closeRejectModal()
-    alert('반려 처리가 완료되었습니다.')
+    showAlert('알림', '반려 처리가 완료되었습니다.')
     setTimeout(() => router.push('/admin/inspection/online'), 300)
   } catch (err) {
     console.error('반려 처리 실패:', err)
-    alert(err.message || '반려 처리 중 오류가 발생했습니다.')
+    showAlert('오류', err.message || '반려 처리 중 오류가 발생했습니다.')
   } finally {
     loading.value = false
   }

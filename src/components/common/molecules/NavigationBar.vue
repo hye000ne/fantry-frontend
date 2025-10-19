@@ -1,26 +1,7 @@
 <script setup>
-import router from '@/router'
+import { router } from '@/router/index.js';
 import NavigationItem from '../atoms/NavigationItem.vue'
 import NavigationDropdownButton from '../atoms/NavigationDropdownButton.vue'
-import { useUserStore } from '@/stores/userStore'
-import { logout } from '@/api/login'
-const userStore = useUserStore()
-
-//로그아웃 처리
-const handleLogout = () => {
-  logout().then(response => {
-    console.log('로그아웃 응답 : ', response)
-    userStore.logout();
-    router.push('/');
-  }).catch(error => {
-    console.error('로그아웃 에러 : ', error)
-  });
-}
-
-//마이페이지
-const goToMyPage = () => {
-  router.push('/mypage');
-}
 
 //상품 목록 페이지로 이동 (그룹 타입 필터링 포함)
 const goToProductList = (groupType) => {
@@ -30,7 +11,7 @@ const goToProductList = (groupType) => {
 </script>
 
 <template>
-  <nav class="navbar navbar-expand-lg bg-light navbar-light py-3 py-lg-0 px-0">
+  <nav class="navbar navbar-expand-lg bg-light navbar-light py-2 py-lg-0 px-0">
     <a href="" class="text-decoration-none d-block d-lg-none">
       <h1 class="m-0 display-5 font-weight-semi-bold">
         <span class="text-primary font-weight-bold border px-3 mr-1">E</span>Shopper
@@ -53,15 +34,6 @@ const goToProductList = (groupType) => {
         <NavigationItem @click="goToProductList('FEMALE_SOLO')">여자 솔로</NavigationItem>
         <NavigationItem @click="goToProductList('MIXED')">혼성 그룹</NavigationItem>
         <NavigationItem @click="goToProductList('OTHER')">기타</NavigationItem>
-      </div>
-      <div class="navbar-nav ml-auto py-0">
-        <template v-if="userStore.isLoggedIn">
-          <NavigationItem @click="handleLogout">로그아웃</NavigationItem>
-          <NavigationItem @click="goToMyPage">마이페이지</NavigationItem>
-        </template>
-        <template v-else>
-          <NavigationItem @click="router.push('/login')">로그인 </NavigationItem>
-        </template>
       </div>
     </div>
   </nav>

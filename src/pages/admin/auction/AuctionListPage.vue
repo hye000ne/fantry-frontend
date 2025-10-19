@@ -40,10 +40,15 @@
     import { getAuctionList, getAuctionDetails } from '@/api/auction';
     import { productNameFormatter } from '@/utils/tableFormatters';
     
+    import { debounce } from 'lodash-es';
+    
+    import { useAlertDialog } from '@/composables/useAlertDialog';
+    
     const router = useRouter();
     const tableContainer = ref(null);
     const serverDataTable = ref(null);
     const tableKey = ref(0);
+    const { showAlert: showAlertDialog } = useAlertDialog();
     
     const saleType = ref('');
     const saleStatus = ref('');
@@ -157,7 +162,7 @@
         };
       } catch (error) {
         console.error('판매 상품 목록 조회 실패:', error);
-        alert('데이터를 불러오는 데 실패했습니다.');
+        showAlertDialog('오류', '데이터를 불러오는 데 실패했습니다.');
         return { rows: [], total: 0 };
       }
     }
@@ -171,7 +176,7 @@
             const status = detailButton.dataset.status;
             if (!id || !status) {
               console.error('ID 또는 상태가 없어 재고 상세로 이동할 수 없습니다.', {id, status});
-              alert('재고 정보를 여는 데 실패했습니다.');
+              showAlertDialog('오류', '재고 정보를 여는 데 실패했습니다.');
               return;
             }
             router.push(`/admin/inventory/detail/${id}?status=${status}`);
@@ -180,9 +185,9 @@
       }
     });
     
-    watch([saleType, saleStatus], () => {
+    watch([saleType, saleStatus], debounce(() => {
       tableKey.value++;
-    });
+    }, 300));
 const parseJavaLocalDateTime = (dt) => {
     if (!Array.isArray(dt) || dt.length < 5) {
         return null; 

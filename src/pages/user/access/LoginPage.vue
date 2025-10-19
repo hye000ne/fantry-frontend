@@ -3,8 +3,10 @@
   import { ref } from 'vue';
   import { login } from '@/api/login';
   import { useUserStore } from '@/stores/userStore'
+  import { useAlertDialog } from '@/composables/useAlertDialog.js';
+  
+  const { showAlert } = useAlertDialog();
   const userStore = useUserStore();
-
   const router = useRouter();
 
   const username = ref('');
@@ -19,11 +21,18 @@
       const response = await login(username.value, password.value);
       localStorage.setItem("accessToken", response.data.accessToken);
       userStore.setLoginInfo(response.data.tokenMemberResponse, response.data.accessToken);
-      router.push('/');
+      
+      if (userStore.isAdmin) {
+        router.push('/admin');
+      } else {
+        router.push('/');
+      }
     } catch (error) {
-      alert(error.response.data.message);
+      showAlert("🚫로그인 오류", error.response.data.message);
       console.log("로그인결과: ", error);
-      router.push('/login/fail');
+      //초기화
+      username.value = null;
+      password.value = null;
     }
   }
 
@@ -33,6 +42,10 @@
 
   const goToFind=()=>{
     router.push('/login/find');
+  }
+
+  const snsLogin = () => {
+    showAlert("⚠️주의", "현재 버전에서는 지원하지 않습니다. 일반 로그인을 진행해주세요.");
   }
 
 </script>
@@ -74,8 +87,8 @@
         <span>sns login</span>
       </div>
       <div class="sns-btns">
-        <button type="button" class="sns-btn naver" name="naver"></button>
-        <button type="button" class="sns-btn kakao" name="kakao"></button>
+        <button type="button" class="sns-btn naver" name="naver" @click="snsLogin"></button>
+        <button type="button" class="sns-btn kakao" name="kakao" @click="snsLogin"></button>
       </div>
     </div>
     <!--SNS Login End-->

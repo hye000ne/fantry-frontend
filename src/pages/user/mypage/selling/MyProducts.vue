@@ -2,14 +2,14 @@
   /* 등록 상품 내역 페이지 */
   
   import ServerDataTable from '@/components/common/datatable/ServerDataTable.vue';
-  import { ref, nextTick, onMounted } from 'vue';
+  import { ref } from 'vue';
   import { useRouter } from 'vue-router';
   import { useUserStore } from '@/stores/userStore';
   import { getAuctionsByMember } from '@/api/auction';
+  import { currencyCol } from '@/composables/useDataTableColumns';
 
   const router = useRouter();
   const keyword = ref('');
-  const isLoading = ref(false);
   const currentMemberId = ref('');
 
   // memberId 가져오기
@@ -31,24 +31,22 @@
       title: '상품명',
       sortable: false,
       render: (data, type, row) => {
-        //긴 상품 이름은 10자 이내로 요약하여 보여지기
-        const summary = data.length > 10 ? data.substring(0,10) + '...': data;
+        //긴 상품 이름은 6자 이내로 요약하여 보여지기
+        const summary = data.length > 6 ? data.substring(0,6) + '...': data;
         return `<span class="auction-link" data-auction-id="${row.auctionId}" style=""color: blue; cursor: pointer; text-decoration: underline;">${summary}</span>`;
       }
     },
     {
-      data: 'startPrice',
-      title: '시작가',
+      ...currencyCol('startPrice', '시작가'),
       sortable: true,
     },
     {
-      data: 'currentPrice',
-      title: '현재가',
+      ...currencyCol('currentPrice', '현재가'),
       sortable: true,
     },
     {
       data: 'saleStatus',
-      title: '판매상태',
+      title: '상태',
       sortable: true,
       render: (data) => {
         const label = statusLabel(data);
@@ -61,7 +59,7 @@
     },
     {
       data: 'saleType',
-      title: '판매유형',
+      title: '유형',
       sortable: true,
       render: (data) => {
         const label = typeLabel(data);
@@ -99,7 +97,7 @@
       const [year, month, day, hour, minute] = dateArray;
       const date = new Date(year, month-1, day, hour, minute);
       const pad = (num) => String(num).padStart(2, '0');
-      return `${year}.${pad(month)}.${pad(day)} ${pad(hour)}:${pad(minute)}`;
+      return `${year}-${pad(month)}-${pad(day)}`;
   }
 
   //라벨 한글화
@@ -277,6 +275,30 @@
   
   :deep(.badge-instant-buy) { 
     background-color: #28a745; 
+  }
+
+  /* 작은 화면에서 스크롤바 스타일링 */
+  :deep(table) {
+    white-space: nowrap !important;
+    padding: 8px 12px;
+  }
+
+  .table-responsive-wrapper::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .table-responsive-wrapper::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+  }
+
+  .table-responsive-wrapper::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+  }
+
+  .table-responsive-wrapper::-webkit-scrollbar-thumb:hover {
+    background: #555;
   }
 
 </style>

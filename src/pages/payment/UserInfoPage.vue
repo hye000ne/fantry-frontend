@@ -6,7 +6,7 @@ import { useUserStore } from '@/stores/userStore'
 import { usePaymentStore } from '@/stores/paymentStore'
 import { getAllAddressMember, addAddress } from '@/api/address'
 import { getAuctionDetails } from '@/api/auction'
-import openDialog from '@/module/dialog'
+import { showAlert } from '@/composables/useAlertDialog'
 
 const router = useRouter()
 const route = useRoute()
@@ -159,7 +159,7 @@ const saveNewAddress = async () => {
     !newAddress.recipientTel ||
     !newAddress.roadAddress
   ) {
-    openDialog('모든 필수 항목을 입력해주세요.')
+    showAlert('입력 오류', '모든 필수 항목을 입력해주세요.')
     return
   }
 
@@ -175,7 +175,7 @@ const saveNewAddress = async () => {
     }
 
     await addAddress(payload)
-    openDialog('배송지가 추가되었습니다.')
+    showAlert('성공', '배송지가 추가되었습니다.')
 
     // 배송지 목록 새로고침
     await loadAddresses()
@@ -191,7 +191,7 @@ const saveNewAddress = async () => {
     }
   } catch (error) {
     console.error('배송지 추가 실패:', error)
-    openDialog('배송지 추가에 실패했습니다. 다시 시도해주세요.')
+    showAlert('실패', '배송지 추가에 실패했습니다. 다시 시도해주세요.')
   }
 }
 
@@ -214,7 +214,7 @@ const closeAddressModal = () => {
 // 결제 정보 확인 페이지로 이동
 const proceedToCheckout = () => {
   if (!isFormValid.value) {
-    openDialog('필수 항목을 모두 입력해주세요.')
+    showAlert('입력 오류', '필수 항목을 모두 입력해주세요.')
     return
   }
 
@@ -249,12 +249,31 @@ const proceedToCheckout = () => {
 const loadAuctionDetails = async (id) => {
   try {
     const response = await getAuctionDetails(id)
-    auctionDetails.value = response.data
-    // Pinia 스토어에 경매 컨텍스트 저장
-    paymentStore.setAuctionContext(id, response.data)
+    console.log('📦 API 응답:', response.data)
+    console.log('🖼️ fileInfos:', response.data.fileInfos)
+
+    // 이미지 URL 처리: 첫 번째 이미지만 추출
+    let imageUrl = '/images/fantry_logo.png' // 기본 이미지
+    if (response.data.fileInfos && response.data.fileInfos.length > 0) {
+      const baseUrl = import.meta.env.VITE_FILE_BASE_URL || ''
+      imageUrl = `${baseUrl}/${response.data.fileInfos[0].fileUrl}`
+      console.log('✅ 이미지 URL 생성:', imageUrl)
+    } else {
+      console.log('⚠️ fileInfos 없음 - 기본 이미지 사용')
+    }
+
+    // 경매 정보에 imageUrl 추가
+    auctionDetails.value = {
+      ...response.data,
+      imageUrl: imageUrl
+    }
+    console.log('💾 auctionDetails.value:', auctionDetails.value)
+
+    // Pinia 스토어에 경매 컨텍스트 저장 (imageUrl 포함)
+    paymentStore.setAuctionContext(id, auctionDetails.value)
   } catch (error) {
     console.error('경매 정보 로드 실패:', error)
-    openDialog('경매 정보를 불러올 수 없습니다.')
+    showAlert('오류', '경매 정보를 불러올 수 없습니다.')
     router.push({ name: 'Home' })
   }
 }
@@ -275,9 +294,9 @@ onMounted(async () => {
       // API로 경매 상세 정보 다시 로드
       await loadAuctionDetails(paymentStore.auctionId)
     } else {
-      // 경매 ID가 없으면 홈으로 리다이렉트
-      openDialog('잘못된 접근입니다.')
-      router.push({ name: 'Home' })
+      // 경매 ID가 없으면 조용히 홈으로 리다이렉트 (결제 완료 후 뒤로가기 시나리오)
+      // 경고 메시지 없이 리다이렉트하여 UX 개선
+      router.replace({ name: 'Home' })
       return
     }
   }
@@ -358,7 +377,7 @@ onBeforeUnmount(() => {
     <div class="container-fluid">
       <div
         class="d-flex flex-column align-items-center justify-content-center"
-        style="min-height: 300px"
+        style="min-height: 100px"
       >
         <h1 class="hero-title mb-3">주문 정보 입력</h1>
         <p class="hero-subtitle">배송을 위한 정보를 입력해주세요</p>

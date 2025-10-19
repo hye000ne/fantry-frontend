@@ -6,7 +6,19 @@ export function formatCurrency(v) {
 }
 
 export function formatDateTime(v) {
-  return v ? new Date(v).toLocaleString() : '-';
+  if (!v) return '-';
+
+  let dt;
+  if (Array.isArray(v)) {
+    // new Date()의 월은 0부터 시작하므로 배열의 월 값에서 -1을 해줍니다.
+    dt = new Date(v[0], v[1] - 1, v[2], v[3] || 0, v[4] || 0, v[5] || 0);
+  } else {
+    dt = new Date(v);
+  }
+
+  if (isNaN(dt.getTime())) return '-'; // 유효하지 않은 날짜는 '-'로 표시
+
+  return dt.toLocaleString('ko-KR');
 }
 
 /**

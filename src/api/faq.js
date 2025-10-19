@@ -8,18 +8,17 @@ import { unwrap } from './InspectionHelper';
 ---------------------------------------------------------------*/
 
 /**
- * 공개된 FAQ 목록을 검색 조건에 따라 페이징하여 조회합니다.
- * @param {object} params - 검색 조건 및 페이징 정보
+ * FAQ 목록을 검색 조건에 따라 페이징하여 조회합니다.
+ * @param {object} params - { csTypeId, keyword, page, size, sort }
  * @returns {Promise<Page<FaqResponse>>}
  */
 export const searchFaqs = (params) => {
     const queryParams = {
+        csTypeId: params.csTypeId,
+        keyword: params.keyword,
         page: params.page > 0 ? params.page - 1 : 0, // API는 0-based page
         size: params.size,
         sort: params.sort,
-        csTypeId: params.csTypeId,
-        keyword: params.keyword,
-        status: params.status,
     };
 
     return unwrap(apiClient.get('/cs/faq', {

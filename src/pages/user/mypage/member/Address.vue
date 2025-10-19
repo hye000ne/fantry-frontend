@@ -6,8 +6,9 @@ import { ref, onMounted } from 'vue';
 import { useUserStore } from '@/stores/userStore';
 import { getAllAddressMember, addAddress, editAddress, deleteAddress, setDefaultAddress } from '@/api/address';
 import openAddressSearch from '@/module/kakaoAddressSearch.js';
+import { useAlertDialog } from '@/composables/useAlertDialog';
 
-
+const { showAlert: showDialog } = useAlertDialog();
 const userStore = useUserStore();
 
 // --- 상태 관리 ---
@@ -80,7 +81,7 @@ const handleAddOrUpdateAddress = async () => {
     const payload = {  ...addressPayload.value, isDefault: addressPayload.value.isDefault};
 
     if (!payload.recipientName || !payload.roadAddress || !payload.recipientTel) {
-        alert('필수 정보를 입력해주세요.');
+        showDialog("⚠️주의", "필수 정보를 입력해주세요.");
         return;
     }
 
@@ -118,10 +119,10 @@ const handleAddOrUpdateAddress = async () => {
 
         if (editingAddressId.value) {
             await editAddress(editingAddressId.value, apiPayload);
-            alert('✅ 배송지가 성공적으로 수정되었습니다.');
+            showDialog("✅안내", "배송지가 성공적으로 수정되었습니다.");
         } else {
             await addAddress(apiPayload);
-            alert('✅ 새로운 배송지가 등록되었습니다.');
+            showDialog("✅안내", "배송지가 성공적으로 등록되었습니다.");
         }
         isAddingOrEditing.value = false;
         editingAddressId.value = null;
@@ -136,7 +137,7 @@ const handleAddOrUpdateAddress = async () => {
         };
         await fetchAddresses();
     } catch (e) {
-        alert('배송지 저장에 실패했습니다. 다시 시도해 주세요.');
+        showDialog("🚫오류", "배송지 저장에 실패했습니다. 다시 시도해 주세요.")
         console.error('Save Address Error:', e);
     } finally {
         isLoading.value = false;
@@ -151,10 +152,10 @@ const handleDeleteAddress = async (addressId) => {
     isLoading.value = true;
     try {
         await deleteAddress(addressId);
-        alert('배송지가 성공적으로 삭제되었습니다.');
+        showDialog("✅안내", "배송지가 성공적으로 삭제되었습니다.");
         await fetchAddresses();
     } catch (e) {
-        alert('배송지 삭제에 실패했습니다. 다시 시도해 주세요.');
+        showDialog("🚫오류", "배송지 삭제에 실패했습니다. 다시 시도해 주세요.");
         console.error('Delete Address Error:', e);
     } finally {
         isLoading.value = false;
@@ -167,10 +168,10 @@ const setPrimaryAddress = async (targetId) => {
     try {
         // 기본 배송지로 설정
         await setDefaultAddress(currentMemberId.value, targetId);
-        alert('기본 배송지가 변경되었습니다.');
+        showDialog("✅안내", "기본 배송지가 변경되었습니다.");
         await fetchAddresses();
     } catch (e) {
-        alert('기본 배송지 변경에 실패했습니다.');
+        showDialog("🚫오류", "기본 배송지 변경에 실패했습니다. 다시 시도해 주세요.");
         console.error('Set Primary Address Error:', e);
     } finally {
         isLoading.value = false;

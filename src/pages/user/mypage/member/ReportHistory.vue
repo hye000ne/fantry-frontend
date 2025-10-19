@@ -2,7 +2,9 @@
 import { ref, onMounted } from 'vue';
 import { useUserStore } from '@/stores/userStore';
 import { getReportsMember, setReceivedReport } from '@/api/report';
+import { useAlertDialog } from '@/composables/useAlertDialog';
 
+const { showAlert } = useAlertDialog();
 const userStore = useUserStore();
 
 const reports = ref([]);
@@ -36,10 +38,10 @@ const requestReceive = async (reportId) => {
     // await updateReceiveReport(report.reportId, payload);
     await setReceivedReport(reportId);
     await fetchMyReports();
-    alert('구제 요청이 접수되었습니다.');
+    showAlert("✅안내", "구제 요청이 접수되었습니다.");
   } catch (e) {
     console.error('Request receive failed', e);
-    alert('구제 요청 중 오류가 발생했습니다.');
+    showAlert("🚫오류", "구제 요청 중 오류가 발생했습니다.");
   } finally {
     isLoading.value = false;
   }

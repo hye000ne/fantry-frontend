@@ -1,9 +1,10 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getInquiryById, answerInquiry } from '@/api/adminInquiry';
 import CommonEditor from '@/components/common/organisms/CommonEditor.vue';
 import LoadingSpinner from '@/components/common/atoms/LoadingSpinner.vue';
+import { useAlertDialog } from '@/composables/useAlertDialog';
 
 const route = useRoute();
 const router = useRouter();
@@ -12,6 +13,7 @@ const inquiryId = Number(route.params.inquiryId);
 const inquiry = ref(null);
 const loading = ref(true);
 const error = ref(null);
+const { showAlert: showAlertDialog } = useAlertDialog();
 
 // 상태 선택 옵션
 const statusOptions = ref([
@@ -26,6 +28,18 @@ const statusOptions = ref([
 function getStatusText(status) {
   const option = statusOptions.value.find(opt => opt.value === status);
   return option ? option.text : status;
+}
+
+// 상태에 따라 동적 클래스를 반환하는 함수
+function getStatusClass(status) {
+  switch (status) {
+    case 'PENDING': return 'bg-primary';
+    case 'IN_PROGRESS': return 'bg-info';
+    case 'ON_HOLD': return 'bg-warning text-dark';
+    case 'REJECTED': return 'bg-dark';
+    case 'ANSWERED': return 'bg-success';
+    default: return 'bg-secondary';
+  }
 }
 
 // URL이 이미지 파일인지 확인하는 헬퍼 함수
@@ -62,12 +76,12 @@ async function handleSubmit() {
   if (!inquiry.value) return;
 
   if (!inquiry.value.answerContent || !inquiry.value.answerContent.trim()) {
-    alert('답변 내용을 입력해주세요.');
+    showAlertDialog('알림', '답변 내용을 입력해주세요.');
     return;
   }
 
   if (!inquiry.value.reqStatus) {
-    alert('처리 상태를 선택해주세요.');
+    showAlertDialog('알림', '처리 상태를 선택해주세요.');
     return;
   }
 
@@ -79,11 +93,11 @@ async function handleSubmit() {
 
   try {
     await answerInquiry(inquiryId, payload);
-    alert('답변이 성공적으로 등록되었습니다.');
+    showAlertDialog('성공', '답변이 성공적으로 등록되었습니다.');
     router.push({ name: 'AdminInquiryList' });
   } catch (e) {
     console.error('답변 저장 실패:', e);
-    alert('답변 저장 중 오류가 발생했습니다.');
+    showAlertDialog('오류', '답변 저장 중 오류가 발생했습니다.');
   }
 }
 
@@ -93,11 +107,26 @@ function goToList() {
 
 function formatDate(dateValue) {
   if (!dateValue) return 'N/A';
-  // 날짜 배열 또는 문자열 형식 모두 처리
-  const dt = new Date(Array.isArray(dateValue) ? dateValue.slice(0, 6).join(',') : dateValue);
+  
+  let dt;
+  if (Array.isArray(dateValue)) {
+    // new Date()의 월은 0부터 시작하므로 배열의 월 값에서 -1을 해줍니다.
+    dt = new Date(dateValue[0], dateValue[1] - 1, dateValue[2], dateValue[3], dateValue[4], dateValue[5] || 0);
+  } else {
+    // 문자열 형식의 날짜를 처리합니다.
+    dt = new Date(dateValue);
+  }
+
+  // 유효하지 않은 날짜인 경우 오류 메시지를 반환합니다.
   if (isNaN(dt.getTime())) return 'Invalid Date';
+  
+  // 한국 시간 형식으로 변환하여 반환합니다.
   return dt.toLocaleString('ko-KR');
 }
+
+watch(() => inquiry.value?.answerContent, (newValue) => {
+  console.log('inquiry.answerContent changed:', newValue);
+});
 
 onMounted(fetchInquiry);
 </script>
@@ -123,14 +152,14 @@ onMounted(fetchInquiry);
         <div class="card-body">
           <div class="row">
             <div class="col-md-6">
-              <p><strong>#ID:</strong> {{ inquiry.inquiryId }}</p>
+              <p><strong>문의번호:</strong> {{ inquiry.inquiryId }}</p>
               <p><strong>제목:</strong> {{ inquiry.title }}</p>
               <p><strong>작성자:</strong> {{ inquiry.inquiredByName || 'N/A' }}</p>
             </div>
             <div class="col-md-6">
-              <p><strong>문의 유형:</strong> {{ inquiry.csType || 'N/A' }}</p>
+              <p><strong>문의 유형:</strong> {{ inquiry.csType ? inquiry.csType.name : 'N/A' }}</p>
               <p><strong>상태:</strong> 
-                <span class="badge bg-primary">{{ getStatusText(inquiry.status) }}</span>
+                <span class="badge" :class="getStatusClass(inquiry.status)">{{ getStatusText(inquiry.status) }}</span>
               </p>
               <p><strong>등록일:</strong> {{ formatDate(inquiry.inquiredAt) }}</p>
             </div>

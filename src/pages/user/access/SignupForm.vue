@@ -2,7 +2,9 @@
     import { reactive, watch } from 'vue';
     import { useRouter } from 'vue-router';
     import { sendAuthCode, signup, checkDuplicateUsername, verifyAuthCode } from '@/api/login';
+    import { useAlertDialog } from '@/composables/useAlertDialog';
 
+    const { showAlert } = useAlertDialog();
     const router = useRouter();
 
     //이전으로 페이지 이동
@@ -147,7 +149,7 @@
     //아이디 중복 확인
     const checkIdDuplicate = async()=>{
         if(!validation.id.isValid){
-            alert("유효한 아이디를 입력해주세요.");
+            showAlert("⚠️주의", "유효한 아이디를 입력해주세요.");
             return;
         }
 
@@ -166,7 +168,7 @@
             }
         }catch(error){
             console.log("아이디 중복 확인 실패: ", error);
-            alert("아이디 중복 확인 중 오류가 발생했습니다.");
+            showAlert("🚫오류", "아이디 중복 확인 중 오류가 발생했습니다.");
             uiState.isIdChecked = false;
         }
     };
@@ -186,7 +188,7 @@
                 clearInterval(uiState.timer);
                 uiState.verificationSent = false;
                 uiState.isEmailVerified = false;
-                alert("인증 시간이 만료되었습니다.");
+                showAlert("🚫경고", "인증 시간이 만료되었습니다.");
             }
         }, 1000);
     };
@@ -199,7 +201,7 @@
     //인증 코드 발송
     const sendVerificationCode = async()=>{
         if(!validation.email.isValid){
-            alert("유효한 이메일을 입력해주세요");
+            showAlert("⚠️주의", "유효한 이메일을 입력해주세요.");
             return;
         }
         uiState.isEmailSendLoading = true;
@@ -214,9 +216,9 @@
 
             uiState.verificationSent = true;
             startTimer(ttlSeconds);
-            alert("인증번호가 발송되었습니다.");
+            showAlert("✅안내", "인증번호가 발송되었습니다.");
         }catch(error){
-            alert("인증번호 발송에 실패하였습니다.");
+            showAlert("🚫경고", "인증번호 발송에 실패하였습니다.");
             console.log(error);
         }finally{
             uiState.isEmailSendLoading = false;
@@ -256,7 +258,7 @@
         const isFormValid = Object.values(validation).every(v=>v.isValid) && uiState.isIdChecked && uiState.isEmailVerified;
 
         if(!isFormValid){
-            alert("모든 정보를 올바르게 입력하고 필수 절차(중복확인, 이메일 인증)를 완료해주세요.");
+            showAlert("⚠️주의", "모든 정보를 올바르게 입력하고 필수 절차(중복확인, 이메일 인증)를 완료해주세요.")
             return;
         }
 
@@ -274,7 +276,7 @@
             router.push('/signup/complete');
         }catch(error){
             console.log(error);
-            alert(`[${error.response.data.code}] 회원가입 실패 : ${error.response.data.message}`);
+            showAlert("🚫경고",`[${error.response.data.code}] 회원가입 실패 : ${error.response.data.message}`);
             console.log("회원가입 실패: ", error.response.data || error.message);
             router.push('/signup/fail');
         }

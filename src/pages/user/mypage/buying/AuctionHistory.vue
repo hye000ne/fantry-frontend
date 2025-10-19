@@ -6,6 +6,7 @@
   import { useRouter } from 'vue-router';
   import { useUserStore } from '@/stores/userStore';
   import { getBidsByMemberId } from '@/api/bid';
+  import { currencyCol } from '@/composables/useDataTableColumns';
 
   const router = useRouter();
   const keyword = ref('');
@@ -31,13 +32,12 @@
       title: '상품명',
       sortable: false,
       render: (data, type, row) => {
-        const summary = data.length > 10 ? data.substring(0,10) + '...': data;
+        const summary = data.length > 6 ? data.substring(0,6) + '...': data;
         return `<span class="auction-link" data-auction-id="${row.itemId}" style="color: blue; cursor: pointer; text-decoration: underline;">${summary}</span>`;
       }
     },
     {
-      data: 'bidAmount',
-      title: '입찰가',
+      ...currencyCol('bidAmount', '입찰가'),
       sortable: true,
     },
     {
@@ -63,7 +63,7 @@
       const [year, month, day, hour, minute] = dateArray;
       const date = new Date(year, month-1, day, hour, minute);
       const pad = (num) => String(num).padStart(2, '0');
-      return `${year}.${pad(month)}.${pad(day)} ${pad(hour)}:${pad(minute)}`;
+      return `${year}-${pad(month)}-${pad(day)}`;
   }
 
   //패치
@@ -111,7 +111,7 @@
       if (target) {
         const auctionId = target.dataset.auctionId;
         if (auctionId) {
-          router.push(`/product/auction/${auctionId}`);
+          router.push(`/product/${auctionId}`);
         }
       }
     });
@@ -188,6 +188,30 @@
   
   :deep(.badge-failed) { 
     background-color: #dc3545; 
+  }
+
+  /* 작은 화면에서 스크롤바 스타일링 */
+  :deep(table) {
+    white-space: nowrap !important;
+    padding: 8px 12px;
+  }
+
+  .table-responsive-wrapper::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .table-responsive-wrapper::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+  }
+
+  .table-responsive-wrapper::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+  }
+
+  .table-responsive-wrapper::-webkit-scrollbar-thumb:hover {
+    background: #555;
   }
 
 </style>

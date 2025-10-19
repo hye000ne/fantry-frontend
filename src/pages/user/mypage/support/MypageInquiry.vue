@@ -281,7 +281,7 @@
       <h1 class="page-title">
         <i class="fa-solid fa-headphones"></i> 문의 내역
       </h1>
-      <button class="btn btn-primary" @click="openForm" v-if="!showForm">문의하기</button>
+      <button class="btn btn-primary" id="hidden-btn" @click="openForm" v-if="!showForm">문의하기</button>
       <button class="btn btn-secondary" @click="closeForm" v-else>목록으로</button>
     </div>
     <p class="page-description">관리자에게 문의사항이 있다면 해당 페이지를 이용해주세요.</p>
@@ -361,6 +361,9 @@
 </template>
 
 <style scoped>
+  #hidden-btn{    /*문의하기 비활성화*/
+    display: none;
+  }
   .content-page {
     max-width: 1200px;
     margin: 20px auto;

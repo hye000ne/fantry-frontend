@@ -1,11 +1,12 @@
 <template>
   <div class="product-list-page container">
-    <h1 class="page-title">상품 목록</h1>
 
-    <div class="sale-type-filters mb-4 text-center">
-      <button class="btn me-2" :class="{ 'btn-primary': selectedSaleType === null, 'btn-outline-primary': selectedSaleType !== null }" @click="selectSaleType(null)">전체</button>
-      <button class="btn me-2" :class="{ 'btn-danger': selectedSaleType === 'AUCTION', 'btn-outline-danger': selectedSaleType !== 'AUCTION' }" @click="selectSaleType('AUCTION')">경매 상품</button>
-      <button class="btn" :class="{ 'btn-primary': selectedSaleType === 'INSTANT_BUY', 'btn-outline-primary': selectedSaleType !== 'INSTANT_BUY' }" @click="selectSaleType('INSTANT_BUY')">일반 판매</button>
+    <div class="sale-type-nav mb-4">
+      <span @click="selectSaleType(null)" :class="{ 'active': selectedSaleType === null }">전체</span>
+      <span class="separator">|</span>
+      <span @click="selectSaleType('AUCTION')" :class="{ 'active': selectedSaleType === 'AUCTION' }">경매상품</span>
+      <span class="separator">|</span>
+      <span @click="selectSaleType('INSTANT_BUY')" :class="{ 'active': selectedSaleType === 'INSTANT_BUY' }">일반 판매</span>
     </div>
 
     <!-- 로딩 상태 -->
@@ -25,7 +26,7 @@
           <div class="product-card" @click="goToProductDetail(auction.auctionId)">
             <!-- 이미지 및 뱃지 -->
             <div class="product-image-container" :class="{ 'instant-buy-border': auction.saleType === 'INSTANT_BUY', 'auction-border': auction.saleType === 'AUCTION' }">
-              <img :src="getThumbnailSrc(auction.fileInfos[0]?.fileUrl)" alt="상품 썸네일" class="product-image">
+              <img :src="getThumbnailSrc(auction.fileInfos[1]?.fileUrl)" alt="상품 썸네일" class="product-image">
               <span v-if="auction.saleType === 'AUCTION'" class="badge bg-danger product-badge">경매 상품</span>
               <span v-else-if="auction.saleType === 'INSTANT_BUY'" class="badge bg-primary product-badge">일반 판매</span>
             </div>
@@ -33,6 +34,11 @@
             <!-- 상품 정보 -->
             <div class="product-info p-3">
               <h5 class="product-name">{{ auction.itemName }}</h5>
+              <div v-if="auction.hashTags" class="hashtag-container my-2">
+                <span v-for="tag in auction.hashTags.split(',').map(t => t.trim())" :key="tag" class="hashtag">
+                  #{{ tag }}
+                </span>
+              </div>
               <p class="product-price">
                 <template v-if="auction.saleType === 'AUCTION'">
                   <span class="text-muted">시작가: {{ formatPrice(auction.startPrice) }}</span><br>
@@ -92,6 +98,7 @@ const selectedSaleType = ref(null); // null: 전체, 'AUCTION': 경매, 'INSTANT
 
 // --- Computed 속성 ---
 const filterGroupType = computed(() => route.query.groupType || null);
+const searchQuery = computed(() => route.query.keyword || null);
 
 // --- 메서드 ---
 const fetchAuctions = async () => {
@@ -110,6 +117,9 @@ const fetchAuctions = async () => {
     }
     if (selectedSaleType.value) {
       params.saleType = selectedSaleType.value;
+    }
+    if (searchQuery.value) {
+      params.keyword = searchQuery.value;
     }
 
     const response = await getAuctionList(params);
@@ -181,6 +191,15 @@ watch(
   }
 );
 
+// 라우트 쿼리(keyword) 변경 감지
+watch(
+  () => route.query.keyword,
+  () => {
+    currentPage.value = 0; // 검색어 변경 시 첫 페이지로 리셋
+    fetchAuctions();
+  }
+);
+
 // 현재 페이지 변경 감지
 watch(currentPage, () => {
   fetchAuctions();
@@ -196,6 +215,39 @@ watch(selectedSaleType, () => {
 .product-list-page {
   padding-top: 30px;
   padding-bottom: 50px;
+
+  .sale-type-nav {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #eee;
+
+    span {
+      font-size: 1.1rem;
+      color: #6c757d;
+      cursor: pointer;
+      transition: color 0.2s ease-in-out;
+
+      &:hover {
+        color: #FF69B4; // Using a color from the theme
+      }
+
+      &.active {
+        font-weight: bold;
+        color: #FF69B4;
+      }
+    }
+
+    .separator {
+      color: #e0e0e0;
+      cursor: default;
+       &:hover {
+        color: #e0e0e0;
+      }
+    }
+  }
 
   .page-title {
     font-size: 2rem;
@@ -289,6 +341,31 @@ watch(selectedSaleType, () => {
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
+    }
+
+    .hashtag-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      // 해시태그가 많을 경우 1줄만 보이도록 처리
+      max-height: 2.2em;
+      overflow: hidden;
+    }
+
+    .hashtag {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 14px;
+      background-color: #f1f3f5;
+      color: #495057;
+      font-size: 0.8rem;
+      font-weight: 500;
+      white-space: nowrap;
+      transition: color 0.2s ease-in-out;
+
+      &:hover {
+        color: #FF69B4;
+      }
     }
 
     .product-price {

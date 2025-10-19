@@ -133,7 +133,9 @@
     import { ref, computed, watch, onMounted } from 'vue';
     import { useRoute, useRouter } from 'vue-router';
     import { updateOneMember, getMemberDetail } from '@/api/member';
+    import { useAlertDialog } from '@/composables/useAlertDialog';
 
+    const { showAlert: showDialog } = useAlertDialog();
     const route = useRoute();
     const router = useRouter();
 
@@ -162,7 +164,7 @@
         };
     } catch (error) {
         console.error('회원 정보 조회 실패:', error);
-        alert('회원 정보를 불러오는데 실패했습니다.');
+        showDialog("🚫오류", "회원 정보를 불러오는데 실패했습니다.");
     } finally {
         loading.value = false;
     }
@@ -206,17 +208,17 @@
           });
 
           if (res.status === 200) {
-          alert('회원 정보가 수정되었습니다.');
+          showDialog("✅안내", "회원 정보가 수정되었습니다.");
           router.push({ 
               name: 'AdminMemberDetail', 
               params: { memberId: originalMember.value.id } 
           });
           } else {
-          alert(`수정 실패: ${res.message || '알 수 없는 오류'}`);
+            showDialog("🚫오류", `${res.message || '알 수 없는 오류'} 로 인해 회원 정보 수정에 실패했습니다.`);
           }
       } catch (error) {
           console.error('수정 중 오류 발생:', error);
-          alert('회원 정보 수정 중 오류가 발생했습니다.');
+          showDialog("🚫오류", "회원 정보 수정 중 오류가 발생했습니다.");
       } finally {
           saving.value = false;
       }

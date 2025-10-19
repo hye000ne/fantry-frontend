@@ -2,7 +2,9 @@
     import { reactive, watch } from 'vue';
     import { useRouter } from 'vue-router';
     import { sendAuthCode, signup, checkDuplicateUsername, verifyAuthCode } from '@/api/login';
+    import { useAlertDialog } from '@/composables/useAlertDialog';
 
+    const { showAlert: showDialog } = useAlertDialog();
     const router = useRouter();
 
     // 이전 페이지로 이동 (관리자 로그인 페이지로 설정)
@@ -134,7 +136,7 @@
     // 아이디 중복 확인 (기존 로직 유지)
     const checkIdDuplicate = async()=>{
         if(!validation.id.isValid){
-            alert("유효한 아이디를 입력해주세요.");
+            showDialog("⚠️주의", "유효한 아이디를 입력해주세요.");
             return;
         }
 
@@ -153,7 +155,7 @@
             }
         }catch(error){
             console.log("아이디 중복 확인 실패: ", error);
-            alert("아이디 중복 확인 중 오류가 발생했습니다.");
+            showDialog("🚫오류", "아이디 중복 확인 중 오류가 발생했습니다.");
             uiState.isIdChecked = false;
         }
     };
@@ -173,7 +175,7 @@
                 clearInterval(uiState.timer);
                 uiState.verificationSent = false;
                 uiState.isEmailVerified = false;
-                alert("인증 시간이 만료되었습니다.");
+                showDialog("🚫경고", "인증 시간이 만료되었습니다.");
             }
         }, 1000);
     };
@@ -181,7 +183,7 @@
     // 인증 코드 발송
     const sendVerificationCode = async()=>{
         if(!validation.email.isValid){
-            alert("유효한 이메일을 입력해주세요");
+            showDialog("⚠️주의", "유효한 이메일을 입력해주세요.");
             return;
         }
         uiState.isEmailSendLoading = true;
@@ -196,9 +198,9 @@
 
             uiState.verificationSent = true;
             startTimer(ttlSeconds);
-            alert("인증번호가 발송되었습니다.");
+            showDialog("✅안내", "인증번호가 발송되었습니다.");
         }catch(error){
-            alert("인증번호 발송에 실패하였습니다.");
+            showDialog("🚫오류", "인증번호 발송 중 오류가 발생했습니다.");
             console.log(error);
         }finally{
             uiState.isEmailSendLoading = false;
@@ -238,7 +240,7 @@
         const isFormValid = Object.values(validation).every(v=>v.isValid) && uiState.isIdChecked && uiState.isEmailVerified;
 
         if(!isFormValid){
-            alert("모든 정보를 올바르게 입력하고 필수 절차(중복확인, 이메일 인증)를 완료해주세요.");
+            showDialog("⚠️주의", "모든 정보를 올바르게 입력하고 필수 절차(중복확인, 이메일 인증)를 완료해주세요.");
             return;
         }
 
@@ -256,11 +258,11 @@
             console.log("관리자 회원가입 성공: ", response);
 
             // 관리자 가입 완료 페이지 또는 관리자 로그인 페이지로 리디렉션
-            alert("관리자 계정이 성공적으로 등록되었습니다. 관리자 로그인 페이지로 이동합니다.");
+            showDialog("✅안내", "관리자 계정이 성공적으로 등록되었습니다. 관리자 로그인 페이지로 이동합니다.");
             router.push('/admin/login');
         }catch(error){
             console.log(error);
-            alert(error.response.data.code + ": "+ error.response.data.message);
+            showDialog("🚫오류", error.response.data.code + ": "+ error.response.data.message);
             console.log("관리자 회원가입 실패: ", error.response.data || error.message);
             router.push('/admin/login');
         }
@@ -315,7 +317,7 @@
                     <select v-model="formState.emailDomain" :disabled="uiState.isEmailVerified">
                         <option value="">선택하세요</option>
                         <option value="fantry.co.kr">fantry.co.kr</option>
-                        <option value="google.com">google.com</option>
+                        <option value="gmail.com">gmail.com</option>
                     </select>
                 </div>
                 <label class="input-error" v-if="!validation.email.isValid">{{ validation.email.message }}</label>

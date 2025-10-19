@@ -3,11 +3,16 @@ import { ref, onMounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import ServerDataTable from '@/components/common/datatable/ServerDataTable.vue';
 import { searchNotices } from '@/api/adminNotice.js';
+import { debounce } from 'lodash-es';
 
 const router = useRouter();
 const table = ref(null);
 const keyword = ref('');
 const tableKey = ref(0);
+
+// Debounce 적용
+const triggerRefresh = () => tableKey.value++;
+const debouncedRefresh = debounce(triggerRefresh, 300); // 300ms 지연
 
 onMounted(() => {
 });
@@ -23,14 +28,20 @@ const currentStatusFilter = ref(null);
 
 const typeFilters = [
   { label: '전체', value: null },
-  { label: '배송문의', value: 1 },
-  { label: '결제문의', value: 2 },
-  { label: '기타문의', value: 3 },
-  { label: '상품문의', value: 4 },
-  { label: '환불/반품 문의', value: 5 },
-  { label: '판매 문의', value: 6 },
+  { label: '공지', value: 1 },
+  { label: '이벤트', value: 2 },
 ];
 const currentTypeFilter = ref(null);
+
+function handleStatusFilterClick(value) {
+  currentStatusFilter.value = value;
+  debouncedRefresh();
+}
+
+function handleTypeFilterClick(value) {
+  currentTypeFilter.value = value;
+  debouncedRefresh();
+}
 
 async function fetcher({ page, size, sort, keyword }) {
   const response = await searchNotices({
@@ -38,7 +49,7 @@ async function fetcher({ page, size, sort, keyword }) {
     size: size,
     sort: sort,
     status: currentStatusFilter.value,
-    csTypeId: currentTypeFilter.value,
+    noticeTypeId: currentTypeFilter.value,
     keyword: keyword,
   });
   return {
@@ -47,21 +58,24 @@ async function fetcher({ page, size, sort, keyword }) {
   };
 }
 
+const formatDateTime = (dt) => {
+  if (!dt || !Array.isArray(dt) || dt.length < 5) return '-';
+  const [year, month, day, hour, minute] = dt;
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+};
+
 const columns = [
   { data: 'noticeId', title: '#', className: 'text-center' },
   {
-    data: 'csType',
+    data: 'noticeType',
     title: '유형',
     className: 'text-center',
     render: (data) => {
       const typeName = data || 'N/A';
       let badgeClass = 'bg-secondary';
       switch (typeName) {
-        case '배송': badgeClass = 'bg-primary'; break;
-        case '결제': badgeClass = 'bg-success'; break;
-        case '상품': badgeClass = 'bg-info'; break;
-        case '환불/반품': badgeClass = 'bg-danger'; break;
-        case '판매': badgeClass = 'bg-dark'; break;
+        case '공지': badgeClass = 'bg-primary'; break;
+        case '이벤트': badgeClass = 'bg-success'; break;
       }
       return `<span class="badge ${badgeClass}">${typeName}</span>`;
     },
@@ -142,8 +156,7 @@ function attachClickHandlers() {
       
       el.addEventListener('click', (e) => {
         const noticeId = e.target.dataset.noticeId;
-        router.push({
-          name: 'AdminNoticeDetail',
+        router.push({ name: 'AdminNoticeDetail',
           params: { noticeId }
         });
       });
@@ -181,7 +194,7 @@ onMounted(() => {
                 type="button"
                 class="btn btn-outline-secondary"
                 :class="{ active: currentStatusFilter === filter.value }"
-                @click="currentStatusFilter = filter.value; tableKey++;"
+                @click="handleStatusFilterClick(filter.value)"
               >
                 {{ filter.label }}
               </button>
@@ -197,7 +210,7 @@ onMounted(() => {
                 type="button"
                 class="btn btn-outline-secondary"
                 :class="{ active: currentTypeFilter === filter.value }"
-                @click="currentTypeFilter = filter.value; tableKey++;"
+                @click="handleTypeFilterClick(filter.value)"
               >
                 {{ filter.label }}
               </button>

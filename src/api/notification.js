@@ -1,5 +1,6 @@
 import { EventSourcePolyfill } from 'event-source-polyfill'
 import { apiClient } from './index.js'
+import { useUserStore } from '@/stores/userStore.js'
 
 /* ============================================================================
    Constants
@@ -70,51 +71,133 @@ const sseCallbacks = {
  * @type {Object}
  */
 const sseListeners = {
-  onOpen: (_) => {
+  onOpen: (event) => {
+    console.log('[SSE:onOpen] 🟢 SSE 연결 열림', {
+      timestamp: new Date().toISOString(),
+      readyState: event.target?.readyState,
+      url: event.target?.url,
+    })
     if (typeof sseCallbacks.onOpen === 'function') {
       sseCallbacks.onOpen()
     }
   },
   onMessage: (event) => {
-    const messageData = JSON.parse(event.data)
+    console.log('[SSE:onMessage] 📨 원본 이벤트 수신', {
+      timestamp: new Date().toISOString(),
+      eventType: event.type,
+      rawData: event.data,
+    })
+
+    let messageData
+    try {
+      messageData = JSON.parse(event.data)
+      console.log('[SSE:onMessage] ✅ 메시지 파싱 성공', {
+        type: messageData.type,
+        connectionId: messageData.connectionId,
+        auctionId: messageData.auctionId,
+        message: messageData.message,
+        fullData: messageData,
+      })
+    } catch (parseError) {
+      console.error('[SSE:onMessage] ❌ 메시지 파싱 실패', {
+        error: parseError.message,
+        rawData: event.data,
+      })
+      return
+    }
 
     if (messageData.type === 'connection_status' && messageData.connectionId) {
+      console.log('[SSE:onMessage] 🔗 Connection ID 할당 받음', {
+        connectionId: messageData.connectionId,
+        previousConnectionId: state.connectionId,
+        timestamp: new Date().toISOString(),
+      })
       state.connectionId = messageData.connectionId
+
+      console.log('[SSE:onMessage] 📞 onRegistration 콜백 호출 시작')
       sseCallbacks.onRegistration()
-      if (import.meta.env.DEV) {
-        console.log('[SSE] Connection ID 할당:', state.connectionId)
-      }
+      console.log('[SSE:onMessage] ✅ onRegistration 콜백 완료')
+    } else {
+      console.log('[SSE:onMessage] 📬 일반 메시지 수신', {
+        type: messageData.type,
+        hasConnectionId: !!messageData.connectionId,
+      })
     }
+
     if (typeof sseCallbacks.onMessage === 'function') {
+      console.log('[SSE:onMessage] 📞 onMessage 콜백으로 전달', {
+        dataLength: event.data?.length,
+      })
       sseCallbacks.onMessage(event.data)
     }
   },
-  onError: (event) => {
-    if (import.meta.env.DEV && event.status) {
-      console.error('[SSE] Error status:', event.status)
+  onDenied: async (event) => {
+    try {
+      // 재발급 API 호출
+      const serverPath = import.meta.env.VITE_API_SERVER_URL
+      const currentToken = localStorage.getItem('accessToken')
+      const res = await axios.post(serverPath + '/api/reissue', null, {
+        withCredentials: true,
+        headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : undefined,
+      })
+      const newAccessToken = res.headers.accesstoken || res.data
+
+      // 로컬 스토리지에 새로운 토큰 저장 + 큐 처리
+      localStorage.setItem('accessToken', newAccessToken)
+    } catch (error) {
+      try {
+        localStorage.removeItem('accessToken')
+      } catch (e) {
+        console.warn('Logout failed inside interceptor', e)
+      }
     }
+  },
+  onError: (event) => {
+    console.error('[SSE:onError] ❌ SSE 에러 발생', {
+      timestamp: new Date().toISOString(),
+      status: event.status,
+      readyState: event.readyState,
+      readyStateText:
+        event.readyState === EventSourcePolyfill.CONNECTING
+          ? 'CONNECTING'
+          : event.readyState === EventSourcePolyfill.OPEN
+            ? 'OPEN'
+            : event.readyState === EventSourcePolyfill.CLOSED
+              ? 'CLOSED'
+              : 'UNKNOWN',
+      isIntentionalClose: state.isIntentionalClose,
+      currentConnectionId: state.connectionId,
+      activeSubscriptions: Array.from(state.subscriptions),
+      eventType: event.type,
+    })
 
     const isClosed = event.readyState === EventSourcePolyfill.CLOSED
     const isConnecting = event.readyState === EventSourcePolyfill.CONNECTING
 
     if (isClosed && !state.isIntentionalClose) {
+      console.warn('[SSE:onError] 🔴 예기치 않은 연결 종료', {
+        willAutoReconnect: true,
+        subscriptionsToRestore: state.subscriptions.size,
+      })
+
       if (typeof sseCallbacks.onError === 'function') {
+        console.log('[SSE:onError] 📞 onError 콜백 호출')
         sseCallbacks.onError(event)
       }
-      // EventSourcePolyfill의 자동 재연결 기능 사용
-      if (import.meta.env.DEV) {
-        console.log('[SSE] 연결 끊김 - EventSourcePolyfill 자동 재연결 대기')
-      }
+
+      console.log('[SSE:onError] ⏳ EventSourcePolyfill 자동 재연결 대기 중...')
     } else if (isClosed) {
-      if (import.meta.env.DEV) {
-        console.log('[SSE] 의도적 연결 종료')
-      }
+      console.log('[SSE:onError] 🟡 의도적 연결 종료', {
+        reason: 'intentional close',
+      })
     } else if (isConnecting) {
+      console.log('[SSE:onError] 🔄 재연결 시도 중...', {
+        attempt: 'auto reconnect in progress',
+      })
+
       if (typeof sseCallbacks.onReconnecting === 'function') {
+        console.log('[SSE:onError] 📞 onReconnecting 콜백 호출')
         sseCallbacks.onReconnecting(event)
-      }
-      if (import.meta.env.DEV) {
-        console.log('[SSE] EventSourcePolyfill 재연결 시도 중')
       }
     }
   },
@@ -147,6 +230,7 @@ const removeListeners = () => {
   state.eventSource.removeEventListener('open', sseListeners.onOpen)
   state.eventSource.removeEventListener(SSE_EVENT_NAME, sseListeners.onMessage)
   state.eventSource.removeEventListener('error', sseListeners.onError)
+  state.eventSource.removeEventListener('auth-error', sseListeners.onDenied)
 }
 
 /**
@@ -183,6 +267,7 @@ const addEventListeners = (callbacks) => {
   state.eventSource.addEventListener('open', sseListeners.onOpen)
   state.eventSource.addEventListener(SSE_EVENT_NAME, sseListeners.onMessage)
   state.eventSource.addEventListener('error', sseListeners.onError)
+  state.eventSource.addEventListener('auth-error', sseListeners.onDenied)
 }
 
 /**
@@ -197,27 +282,52 @@ const addEventListeners = (callbacks) => {
  * @param {Function} callbacks.onClose - 연결 종료 시 콜백
  */
 export const connectSse = (userId, callbacks = {}) => {
+  console.log('[SSE:connectSse] 🚀 SSE 연결 요청', {
+    timestamp: new Date().toISOString(),
+    userId,
+    currentState: {
+      hasEventSource: !!state.eventSource,
+      readyState: state.eventSource?.readyState,
+      connectionId: state.connectionId,
+      subscriptions: Array.from(state.subscriptions),
+    },
+  })
+
   if (state.eventSource && state.eventSource.readyState === EventSourcePolyfill.OPEN) {
+    console.warn('[SSE:connectSse] ⚠️ 이미 연결되어 있음 - 연결 시도 취소', {
+      existingConnectionId: state.connectionId,
+    })
     return
   }
+
   const baseURL = import.meta.env.VITE_API_SERVER_URL || ''
   const token = localStorage.getItem('accessToken')
 
+  console.log('[SSE:connectSse] 🔧 연결 설정', {
+    baseURL,
+    endpoint: `${baseURL}/api/notification/${userId}`,
+    hasToken: !!token,
+    tokenPreview: token ? `${token.substring(0, 10)}...` : null,
+    heartbeatTimeout: 2100000,
+  })
+
   state.userId = userId
   state.isIntentionalClose = false
-  state.eventSource = new EventSourcePolyfill(`${baseURL}/api/notification/${userId}`, {
+  state.eventSource = new EventSourcePolyfill(`${baseURL}/api/notification/sse/${userId}`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
-    heartbeatTimeout: 3600000, // 1시간
+    heartbeatTimeout: 2100000, // 35분
     withCredentials: true,
   })
 
-  addEventListeners(callbacks)
+  console.log('[SSE:connectSse] 📡 EventSource 생성 완료', {
+    readyState: state.eventSource.readyState,
+    url: state.eventSource.url,
+  })
 
-  if (import.meta.env.DEV) {
-    console.log('[SSE] 연결 시도:', userId)
-  }
+  addEventListeners(callbacks)
+  console.log('[SSE:connectSse] ✅ 이벤트 리스너 등록 완료')
 }
 
 /**
@@ -245,20 +355,52 @@ export const disconnectSse = async () => {
  * @returns {Promise<Object>} 구독 결과
  */
 export const subscribe = async (userId, auctionId) => {
+  console.log('[SSE:subscribe] 📝 구독 요청 시작', {
+    timestamp: new Date().toISOString(),
+    userId,
+    auctionId,
+    currentConnectionId: state.connectionId,
+    existingSubscriptions: Array.from(state.subscriptions),
+  })
+
   // ✅ Connection ID 확인
   if (!state.connectionId) {
+    console.error('[SSE:subscribe] ❌ Connection ID 없음 - 구독 불가', {
+      userId,
+      auctionId,
+      suggestion: 'onRegistration 콜백 이후 구독 필요',
+    })
     throw new Error('SSE 연결이 아직 완료되지 않았습니다. onRegistration 콜백에서 구독하세요.')
   }
 
   try {
+    console.log('[SSE:subscribe] 🔄 manageSubscription 호출', {
+      userId,
+      auctionId,
+      action: ActionType.SUBSCRIBE,
+      connectionId: state.connectionId,
+    })
+
     const response = await manageSubscription(userId, auctionId, ActionType.SUBSCRIBE)
+
     state.subscriptions.add(auctionId)
-    if (import.meta.env.DEV) {
-      console.log('[SSE] 구독 성공:', auctionId, '총 구독:', state.subscriptions.size)
-    }
+
+    console.log('[SSE:subscribe] ✅ 구독 성공', {
+      auctionId,
+      totalSubscriptions: state.subscriptions.size,
+      allSubscriptions: Array.from(state.subscriptions),
+      response: response?.data,
+    })
+
     return response
   } catch (error) {
-    console.error('[SSE] 구독 실패:', auctionId, error)
+    console.error('[SSE:subscribe] ❌ 구독 실패', {
+      auctionId,
+      userId,
+      error: error.message,
+      errorDetails: error.response?.data,
+      status: error.response?.status,
+    })
     state.subscriptions.delete(auctionId)
     throw error
   }
@@ -340,26 +482,52 @@ export const isConnected = () => {
  * @param {Array} options.actions - 액션 버튼들
  */
 export const showNotification = (title, options = {}) => {
+  console.log('[SSE:showNotification] 🔔 알림 표시 요청', {
+    timestamp: new Date().toISOString(),
+    title,
+    body: options.body,
+    data: options.data,
+    actions: options.actions,
+    permission: Notification.permission,
+    isSecureContext: window.isSecureContext,
+    hasServiceWorker: 'serviceWorker' in navigator,
+  })
+
   if (Notification.permission !== 'granted') {
-    if (import.meta.env.DEV) {
-      console.warn('[알림] 알림 권한이 부여되지 않음')
-    }
+    console.warn('[SSE:showNotification] ⚠️ 알림 권한 없음', {
+      permission: Notification.permission,
+      suggestion: 'requestNotificationPermission() 호출 필요',
+    })
     return
   }
 
   if (window.isSecureContext && 'serviceWorker' in navigator) {
+    console.log('[SSE:showNotification] 🔧 Service Worker 알림 시도')
+
     navigator.serviceWorker.ready
       .then((registration) => {
-        registration.showNotification(title, options)
+        console.log('[SSE:showNotification] ✅ Service Worker 준비 완료', {
+          scope: registration.scope,
+          active: !!registration.active,
+        })
+        return registration.showNotification(title, options)
+      })
+      .then(() => {
+        console.log('[SSE:showNotification] ✅ Service Worker 알림 표시 성공')
       })
       .catch((error) => {
-        if (import.meta.env.DEV) {
-          console.error('[알림] Service Worker 알림 실패:', error)
-        }
-        // Fallback to basic notification
+        console.error('[SSE:showNotification] ❌ Service Worker 알림 실패', {
+          error: error.message,
+          stack: error.stack,
+        })
+        console.log('[SSE:showNotification] 🔄 기본 알림으로 폴백')
         showBasicNotification(title, options)
       })
   } else {
+    console.log('[SSE:showNotification] ℹ️ Service Worker 미지원 - 기본 알림 사용', {
+      isSecureContext: window.isSecureContext,
+      hasServiceWorker: 'serviceWorker' in navigator,
+    })
     showBasicNotification(title, options)
   }
 }

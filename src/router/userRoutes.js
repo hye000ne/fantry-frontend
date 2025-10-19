@@ -7,11 +7,12 @@
 
 // --- 레이아웃 ---
 import UserLayout from '@/layouts/UserLayout.vue'
-import CheckoutPage from '@/pages/payment/CheckoutPage.vue'
-import UserInfoPage from '@/pages/payment/UserInfoPage.vue'
-import PaymentCompletePage from '@/pages/payment/PaymentCompletePage.vue'
 
 // --- 페이지 컴포넌트 (Lazy Loading) ---
+const CSPageLayout = () => import('@/layouts/CSPageLayout.vue');
+const CheckoutPage = () => import('@/pages/payment/CheckoutPage.vue');
+const UserInfoPage = () => import('@/pages/payment/UserInfoPage.vue');
+const PaymentCompletePage = () => import('@/pages/payment/PaymentCompletePage.vue');
 const HomePage = () => import('@/pages/HomePage.vue');
 const LoginPage = () => import('@/pages/user/access/LoginPage.vue');
 const LoginFind = () => import('@/pages/user/access/LoginFind.vue');
@@ -32,6 +33,14 @@ const InspectionStep3Page = () => import('@/pages/user/inspection/Step3Page.vue'
 const InspectionPolicyPage = () => import('@/pages/user/inspection/InspectionPolicyPage.vue')
 // 마이페이지
 const MyPageLayout = () => import('@/pages/user/mypage/MyPage.vue')
+// 고객센터
+
+const FaqPage = () => import('@/pages/user/cs/FaqPage.vue')
+const NoticePage = () => import('@/pages/user/cs/NoticePage.vue')
+const NoticeDetailPage = () => import('@/pages/user/cs/NoticeDetailPage.vue')
+const InquiryWritePage = () => import('@/pages/user/cs/InquiryWritePage.vue')
+const InquiryListPage = () => import('@/pages/user/cs/InquiryListPage.vue')
+const InquiryDetailPage = () => import('@/pages/user/cs/InquiryDetailPage.vue')
 
 const userRoutes = {
   path: '/',
@@ -155,6 +164,52 @@ const userRoutes = {
       name: 'MyPageLayout',
       component: MyPageLayout,
       meta: { requiresAuth: true },
+    },
+    {
+      path: 'mypage/refund/:orderId',
+      name: 'RefundRequest',
+      component: () => import('@/pages/user/mypage/refund/RefundRequestPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: 'cs',
+      component: CSPageLayout,
+      redirect: '/cs/notice',
+      children: [
+        {
+          path: 'faq',
+          name: 'FaqPage',
+          component: FaqPage,
+        },
+        {
+          path: 'notice',
+          name: 'NoticePage',
+          component: NoticePage,
+        },
+        {
+          path: 'notice/:id',
+          name: 'NoticeDetail',
+          component: NoticeDetailPage,
+        },
+        {
+          path: 'inquiry-write',
+          name: 'InquiryWritePage',
+          component: InquiryWritePage,
+          meta: { requiresAuth: true },
+        },
+        {
+          path: 'inquiry-list',
+          name: 'InquiryListPage',
+          component: InquiryListPage,
+          meta: { requiresAuth: true },
+        },
+        {
+          path: 'inquiry/:id',
+          name: 'InquiryDetail',
+          component: InquiryDetailPage,
+          meta: { requiresAuth: true },
+        },
+      ]
     },
     {
       path: 'product/order/info',

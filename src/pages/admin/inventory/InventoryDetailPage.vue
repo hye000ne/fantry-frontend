@@ -3,9 +3,11 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { getOfflineInspectionDetail, changeInventoryStatus } from '@/api/adminInspection'
 import { createAuction, getAuctionByInspectionId, cancelAuction } from '@/api/auction'
+import { useAlertDialog } from '@/composables/useAlertDialog';
 
 const router = useRouter()
 const route = useRoute()
+const { showAlert: showAlertDialog } = useAlertDialog();
 
 // --- 상태 관리 ---
 const loading = ref(true)
@@ -41,7 +43,7 @@ onMounted(async () => {
     initialInventoryStatus.value = route.query.status;
     updatePageMode(inventoryStatus.value);
   } else {
-    alert('상품 상태 정보가 없어 페이지를 표시할 수 없습니다.');
+    showAlertDialog('오류', '상품 상태 정보가 없어 페이지를 표시할 수 없습니다.');
     router.back();
     return;
   }
@@ -83,7 +85,7 @@ async function fetchDetails(id) {
     }
   } catch (err) {
     console.error('재고 상세 조회 실패:', err)
-    alert(err.message || '데이터를 불러오는 데 실패했습니다.')
+    showAlertDialog('오류', err.message || '데이터를 불러오는 데 실패했습니다.')
   } finally {
     loading.value = false
   }
@@ -131,11 +133,11 @@ async function handleRegister() {
   loading.value = true
   try {
     await createAuction(payload)
-    alert('상품이 성공적으로 등록되었습니다.')
+    showAlertDialog('성공', '상품이 성공적으로 등록되었습니다.')
     router.push('/admin/inventory/list'); // Redirect to list page
   } catch (err) {
     console.error('상품 등록 실패:', err)
-    alert(err.message || '상품 등록 중 오류가 발생했습니다.')
+    showAlertDialog('오류', err.message || '상품 등록 중 오류가 발생했습니다.')
   } finally {
     loading.value = false
   }
@@ -148,11 +150,11 @@ async function handleCancelSale() {
   loading.value = true
   try {
     await cancelAuction(auctionId.value);
-    alert('판매가 성공적으로 취소되었습니다.');
+    showAlertDialog('성공', '판매가 성공적으로 취소되었습니다.');
     await fetchDetails(inspectionId.value) // 재조회하여 상태 변경 반영
   } catch (err) {
     console.error('판매 취소 실패:', err)
-    alert(err.message || '판매 취소 중 오류가 발생했습니다.')
+    showAlertDialog('오류', err.message || '판매 취소 중 오류가 발생했습니다.')
   } finally {
     loading.value = false
   }
@@ -165,31 +167,31 @@ function validateForm() {
   const endTime = new Date(saleForm.endTime)
 
   if (!saleForm.saleType) {
-    alert('판매 유형을 선택해주세요.')
+    showAlertDialog('알림', '판매 유형을 선택해주세요.')
     return false
   }
   if (!saleForm.startPrice || saleForm.startPrice < 1000) {
-    alert('가격은 1,000원 이상이어야 합니다.')
+    showAlertDialog('알림', '가격은 1,000원 이상이어야 합니다.')
     return false
   }
   if (!saleForm.startTime) {
-    alert('판매 시작 시간을 입력해주세요.')
+    showAlertDialog('알림', '판매 시작 시간을 입력해주세요.')
     return false
   }
   if (startTime < now) {
-    alert('판매 시작 시간은 현재 시간 이후여야 합니다.')
+    showAlertDialog('알림', '판매 시작 시간은 현재 시간 이후여야 합니다.')
     return false
   }
   if (!saleForm.endTime) {
-    alert('판매 종료 시간을 입력해주세요.')
+    showAlertDialog('알림', '판매 종료 시간을 입력해주세요.')
     return false
   }
   if (endTime <= startTime) {
-    alert('판매 종료 시간은 시작 시간 이후여야 합니다.')
+    showAlertDialog('알림', '판매 종료 시간은 시작 시간 이후여야 합니다.')
     return false
   }
   if (endTime.getTime() - startTime.getTime() < 60000) {
-    alert('판매 시간은 최소 1분 이상이어야 합니다.')
+    showAlertDialog('알림', '판매 시간은 최소 1분 이상이어야 합니다.')
     return false
   }
   return true

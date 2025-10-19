@@ -9,9 +9,15 @@ import BaseChart from '@/components/common/chart/BaseChart.vue';
 import { useChartPalette, makeLineDataset } from '@/composables/useChartConfig';
 import { currencyCol, dateTimeCol, textCol } from '@/composables/useDataTableColumns';
 import { getAdminSettlements } from '@/api/adminSettlement.js'; // API 임포트
+import { debounce } from 'lodash-es';
 
 const keyword = ref('');
 const currentStatusFilter = ref(null);
+const tableKey = ref(0);
+
+// Debounce 적용
+const triggerRefresh = () => tableKey.value++;
+const debouncedRefresh = debounce(triggerRefresh, 300);
 
 const statusFilters = [
   { label: '전체', value: null },
@@ -20,6 +26,12 @@ const statusFilters = [
   { label: '완료됨', value: 'COMPLETED' },
   { label: '실패', value: 'FAILED' },
 ];
+
+function handleStatusFilterClick(value) {
+  currentStatusFilter.value = value;
+  keyword.value = ''; // 검색어 초기화
+  debouncedRefresh();
+}
 
 // fetcher: 실제 API 연동 시 axios 호출로 교체
 async function fetchSettlements({ page, size, sort }) {
@@ -100,7 +112,7 @@ const chartOptions = { scales: { y: { beginAtZero: true } } };
                 type="button"
                 class="btn btn-outline-secondary"
                 :class="{ active: currentStatusFilter === filter.value }"
-                @click="currentStatusFilter = filter.value; keyword = '';"
+                @click="handleStatusFilterClick(filter.value)"
               >
                 {{ filter.label }}
               </button>
@@ -109,6 +121,7 @@ const chartOptions = { scales: { y: { beginAtZero: true } } };
         </div>
 
         <ServerDataTable
+          :key="tableKey"
           v-model:keyword="keyword"
           search-placeholder="판매자 이름으로 검색"
           :columns="columns"

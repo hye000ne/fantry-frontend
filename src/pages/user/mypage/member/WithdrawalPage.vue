@@ -6,7 +6,9 @@
 import { ref, computed } from 'vue';
 import { useUserStore } from '@/stores/userStore';
 import { verifyMemberPassword, deactiveateMember } from '@/api/member'; // deleteMember API import
+import { useAlertDialog } from '@/composables/useAlertDialog';
 
+const { showAlert: showDialog } = useAlertDialog();
 const userStore = useUserStore();
 
 // 상태 관리
@@ -61,7 +63,7 @@ const withdrawMember = async () => {
         const response = await deactiveateMember(currentUserId.value); 
         
         if (response.status === 204 || response.status === 200) {
-            alert('회원 탈퇴 처리가 완료되었습니다. 이용해 주셔서 감사합니다.');
+            showDialog("✅안내", "회원 탈퇴 처리가 완료되었습니다. 그동안 이용해 주셔서 감사합니다.");
             // 탈퇴 성공 시, 스토어의 로그아웃 액션을 호출하여 세션 정리 및 리디렉션
             userStore.logout(); 
         } else {
@@ -135,9 +137,9 @@ const closeModal = () => {
                     </div>
 
                     <div class="modal-footer">
-                        <button class="btn-secondary" @click="closeModal" :disabled="isLoading">
+                        <!-- <button class="btn-secondary" @click="closeModal" :disabled="isLoading">
                             취소
-                        </button>
+                        </button> -->
                         <button class="btn-primary" @click="verifyPassword" :disabled="isLoading">
                             {{ isLoading ? '인증 중...' : '확인' }}
                         </button>

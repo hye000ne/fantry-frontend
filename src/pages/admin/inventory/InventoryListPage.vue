@@ -5,8 +5,12 @@ import { getAuctionByInspectionId } from '@/api/auction'
 import ServerDataTable from '@/components/common/datatable/ServerDataTable.vue'
 import { currencyCol } from '@/composables/useDataTableColumns'
 import { useRouter } from 'vue-router'
+import { useAlertDialog } from '@/composables/useAlertDialog';
+
+import { debounce } from 'lodash-es';
 
 const router = useRouter()
+const { showAlert: showAlertDialog } = useAlertDialog();
 
 // 상태 변수
 const loading = ref(false)
@@ -14,6 +18,10 @@ const keyword = ref('')
 const tableKey = ref(0)
 const allStatuses = ['PENDING_REGIST', 'PENDING_ACTIVE', 'ACTIVE', 'SOLD', 'NOT_SOLD', 'CANCELED', 'REACTIVE'];
 const currentFilter = ref(allStatuses) // 기본값: 전체
+
+// Debounce 적용
+const triggerRefresh = () => tableKey.value++;
+const debouncedRefresh = debounce(triggerRefresh, 300);
 
 // 필터 목록
 const filters = [
@@ -125,7 +133,7 @@ async function fetchInventoryItems({ page, size, sort, keyword }) {
     }
   } catch (err) {
     console.error('재고 목록 조회 실패:', err)
-    alert(err.message || '데이터를 불러오는 데 실패했습니다.')
+    showAlertDialog('오류', err.message || '데이터를 불러오는 데 실패했습니다.')
     return { rows: [], total: 0 }
   } finally {
     loading.value = false
@@ -172,7 +180,7 @@ const columns = computed(() => [
 // 필터 변경 시 테이블 리로드
 function changeFilter(statuses) {
   currentFilter.value = statuses
-  tableKey.value++
+  debouncedRefresh()
 }
 
 // 이벤트 위임을 통해 동적 버튼 클릭 처리

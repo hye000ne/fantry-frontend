@@ -17,9 +17,8 @@ export const searchNotices = (params) => {
         page: params.page > 0 ? params.page - 1 : 0, // API는 0-based page
         size: params.size,
         sort: params.sort,
-        csTypeId: params.csTypeId,
+        noticeTypeId: params.noticeTypeId,
         keyword: params.keyword,
-        status: params.status,
     };
 
     return unwrap(apiClient.get('/cs/notices', {
@@ -42,5 +41,6 @@ export const searchNotices = (params) => {
  * @returns {Promise<NoticeDetailResponse>}
  */
 export const getNoticeDetail = (noticeId) => {
+    console.log(`Fetching notice detail for ID: ${noticeId}`);
     return unwrap(apiClient.get(`/cs/notices/${noticeId}`));
 };

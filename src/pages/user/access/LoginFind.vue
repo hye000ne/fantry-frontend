@@ -2,7 +2,9 @@
   import { ref, reactive, watch } from "vue";
   import { useRouter } from "vue-router";
   import { sendAuthCode, verifyAuthCode, findUserId } from "@/api/login";
-
+  import { useAlertDialog } from '@/composables/useAlertDialog.js';
+  
+  const { showAlert } = useAlertDialog();
   const router = useRouter();
 
   /*-----------------------------------------------------------
@@ -82,7 +84,7 @@
   //인증번호 요청
   const sendCode = async()=>{
     if(!email.value){
-      alert("이메일을 입력해주세요.");
+      showAlert("⚠️주의", "이메일을 입력해주세요.");
       return;
     }
     uiState.isEmailSendLoading = true;
@@ -97,7 +99,7 @@
       const ttlSeconds = response.data.ttl;
       startTimer(ttlSeconds);
       uiState.verificationSent = true;
-      alert("인증번호가 발송되었습니다.");
+      showAlert("✅안내", "인증번호가 발송되었습니다.");
     } catch(err){
       errorMessages.emailSendError = "인증번호 발송에 실패하였습니다.";
       console.log(err);
@@ -164,15 +166,15 @@
   //비밀번호 찾기 요청
   const findPwd = async()=>{
     if(!email.value){
-      alert("이메일을 입력해주세요.");
+      showAlert("⚠️주의", "이메일을 입력해주세요.");
       return;
     }
     try{
       // 서버 요청
       // await axios.post('');
-      alert("비밀번호 재설정 메일을 발송했습니다.");
+      showAlert("✅안내", "비밀번호 재설정 메일을 발송했습니다.");
     }catch(err){
-      alert("비밀번호 찾기 실패");
+      showAlert("🚫오류", "비밀번호 찾기 실패");
       console.log(err);
     }
   };

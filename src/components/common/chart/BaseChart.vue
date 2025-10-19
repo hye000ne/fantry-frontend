@@ -10,12 +10,14 @@ import {
   Chart,
   LineController, LineElement, PointElement,
   BarController, BarElement,
+  DoughnutController, ArcElement, // DoughnutController와 ArcElement 추가
   CategoryScale, LinearScale, Tooltip, Legend, Filler
 } from 'chart.js';
 
 Chart.register(
   LineController, LineElement, PointElement,
   BarController, BarElement,
+  DoughnutController, ArcElement, // DoughnutController와 ArcElement 추가
   CategoryScale, LinearScale, Tooltip, Legend, Filler
 );
 
@@ -44,8 +46,8 @@ function render(force = false) {
   if (chart) chart.destroy();
   chart = new Chart(canvasRef.value.getContext('2d'), {
     type: props.type,
-    data: clone(props.data), // 내부에서 mutate 방지 위해 복제
-    options: clone(props.options),
+    data: clone(props.data || {}), // props.data가 undefined일 경우 빈 객체 전달
+    options: clone(props.options || {}),
     plugins: props.plugins
   });
 }

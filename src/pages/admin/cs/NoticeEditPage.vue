@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { getNoticeById, updateNotice, addNoticeAttachments } from '@/api/adminNotice.js'; // addNoticeAttachments 임포트
 import CommonEditor from '@/components/common/organisms/CommonEditor.vue';
 import LoadingSpinner from '@/components/common/atoms/LoadingSpinner.vue';
+import { useAlertDialog } from '@/composables/useAlertDialog';
 
 const route = useRoute();
 const router = useRouter();
@@ -13,6 +14,7 @@ const notice = ref(null);
 const loading = ref(true);
 const error = ref(null);
 const selectedFiles = ref([]); // 새 파일 저장을 위한 ref
+const { showAlert: showAlertDialog } = useAlertDialog();
 
 const statusOptions = ref([
   { value: 'ACTIVE', text: '활성' },
@@ -75,7 +77,7 @@ async function handleSubmit() {
     router.push({ name: 'AdminNoticeDetail', params: { noticeId } });
   } catch (e) {
     console.error('공지사항 수정 실패:', e);
-    alert('수정 중 오류가 발생했습니다.');
+    showAlertDialog('오류', '수정 중 오류가 발생했습니다.');
   }
 }
 

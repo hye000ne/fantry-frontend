@@ -2,6 +2,9 @@
 import { ref, onMounted, defineProps, defineEmits } from 'vue';
 import { useRouter } from 'vue-router';
 import { getOrderById } from '@/api/order';
+import { usePaymentStore } from '@/stores/paymentStore';
+
+const paymentStore = usePaymentStore();
 
 const props = defineProps({
   ordersId: [String, Number]
@@ -74,7 +77,8 @@ const formatPrice = (price) => {
 
 const goToProductDetail = () => {
   if (orderData.value?.auctionId) {
-    router.push(`/product/auction/${orderData.value.auctionId}`);
+    paymentStore.setAuctionContext(orderData.value.auctionId);
+    router.push('/product/order/info');
   }
 };
 

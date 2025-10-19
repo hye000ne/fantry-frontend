@@ -1,7 +1,9 @@
 <script setup>
   import { ref } from 'vue';
   import { useRouter } from 'vue-router';
+  import { useAlertDialog } from '@/composables/useAlertDialog';
 
+  const { showAlert } = useAlertDialog();
   const router = useRouter();
 
   //필수 체크박스 상태
@@ -29,7 +31,7 @@
     if (terms1.value && terms2.value && terms3.value && terms4.value) {
       router.push('/signup/form');
     } else {
-      alert('필수 약관에 모두 동의해주세요.');
+      showAlert("⚠️주의", "필수 약관에 모두 동의해주세요.");
     }
   }
 </script>

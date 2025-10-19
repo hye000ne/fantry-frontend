@@ -3,6 +3,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import CardHeader from './components/atoms/CardHeader.vue'
 import { usePaymentStore } from '@/stores/paymentStore'
+import { showAlert } from '@/composables/useAlertDialog'
 
 const router = useRouter()
 const route = useRoute()
@@ -92,7 +93,7 @@ const initializePaymentData = () => {
     }, 1000)
   } else {
     // 결제 정보가 없으면 홈으로 리다이렉트
-    alert('잘못된 접근입니다.')
+    showAlert('경고', '잘못된 접근입니다.')
     router.replace('/')
   }
 }
@@ -111,21 +112,21 @@ const cleanupPaymentData = () => {
   console.log('결제 데이터 정리 완료')
 }
 
-// 브라우저 뒤로가기 방지
+// 브라우저 뒤로가기 처리 - UserInfo/Checkout 건너뛰기
 const preventBackNavigation = () => {
-  // 현재 페이지를 히스토리에 추가
-  history.pushState(null, '', location.href)
-
   // popstate 이벤트 리스너 추가
   window.addEventListener('popstate', handlePopState)
 }
 
 const handlePopState = (event) => {
-  // 뒤로가기 시도 시 다시 현재 페이지로 이동
-  history.pushState(null, '', location.href)
+  // 뒤로가기 시 결제 프로세스 페이지를 건너뛰고 이전 페이지로 이동
+  // (UserInfo, Checkout 페이지를 거치지 않고 경매 상세 또는 홈으로 이동)
+  event.preventDefault()
 
-  // 사용자에게 알림 (선택사항)
-  alert('결제가 완료되었습니다. 주문 내역은 마이페이지에서 확인하실 수 있습니다.')
+  // 결제 프로세스 페이지 수 (UserInfo, Checkout, Complete = 3페이지)
+  // 3페이지 이전으로 이동하여 결제 프로세스 이전 페이지로 돌아감
+  window.removeEventListener('popstate', handlePopState)
+  window.history.go(-2) // Complete는 replace로 진입했으므로 -2만 해도 UserInfo/Checkout 건너뜀
 }
 
 // 주문번호 생성
@@ -140,42 +141,17 @@ const generateOrderId = () => {
   return `F${year}${month}${day}${random}`
 }
 
-// 페이지 이동 함수들 - 결제 프로세스 히스토리 제거
-const clearPaymentHistoryAndNavigate = (path) => {
-  // 결제 프로세스 페이지 수 (Info -> Checkout -> Complete = 3페이지)
-  const paymentPagesCount = 3
-
-  // 현재 히스토리 길이 확인
-  const currentHistoryLength = window.history.length
-
-  // 결제 프로세스 이전 페이지로 돌아가기 (3페이지 뒤로)
-  if (currentHistoryLength >= paymentPagesCount) {
-    // history.go()로 3페이지 뒤로 이동한 후, replace로 목적지 경로 설정
-    window.history.go(-paymentPagesCount)
-
-    // popstate 이벤트 리스너를 일시적으로 제거하여 뒤로가기 방지 해제
-    window.removeEventListener('popstate', handlePopState)
-
-    // 뒤로가기 완료 후 목적지로 replace
-    setTimeout(() => {
-      router.replace(path)
-    }, 100)
-  } else {
-    // 히스토리가 부족한 경우 그냥 replace로 이동
-    router.replace(path)
-  }
-}
-
+// 페이지 이동 함수들 - 직접 이동으로 중간 페이지 검증 회피
 const goToHome = () => {
-  clearPaymentHistoryAndNavigate('/')
+  // popstate 이벤트 리스너 제거하여 뒤로가기 방지 해제
+  window.removeEventListener('popstate', handlePopState)
+  router.replace('/')
 }
 
 const goToMyPage = () => {
-  clearPaymentHistoryAndNavigate('/mypage')
-}
-
-const goToOrderHistory = () => {
-  clearPaymentHistoryAndNavigate('/mypage/orders')
+  // popstate 이벤트 리스너 제거하여 뒤로가기 방지 해제
+  window.removeEventListener('popstate', handlePopState)
+  router.replace('/mypage')
 }
 
 onMounted(() => {
@@ -200,7 +176,7 @@ onBeforeUnmount(() => {
     <div class="container-fluid">
       <div
         class="d-flex flex-column align-items-center justify-content-center"
-        style="min-height: 400px"
+        style="min-height: 100px"
       >
         <div class="spinner-border text-primary mb-3" role="status">
           <span class="sr-only">로딩 중...</span>
@@ -344,9 +320,6 @@ onBeforeUnmount(() => {
 
           <!-- 액션 버튼 그룹 -->
           <div class="action-buttons text-center mb-5">
-            <button class="btn btn-primary btn-lg mr-3 px-4 py-3" @click="goToOrderHistory">
-              주문 내역 확인
-            </button>
             <button class="btn btn-outline-primary btn-lg mr-3 px-4 py-3" @click="goToMyPage">
               마이페이지
             </button>

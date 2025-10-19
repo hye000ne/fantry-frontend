@@ -3,14 +3,16 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { createNotice, addNoticeAttachments } from '@/api/adminNotice.js';
 import CommonEditor from '@/components/common/organisms/CommonEditor.vue';
+import { useAlertDialog } from '@/composables/useAlertDialog';
 
 const router = useRouter();
+const { showAlert: showAlertDialog } = useAlertDialog();
 
 const newNotice = ref({
   title: '',
   content: '',
   status: 'DRAFT', // 기본값을 'DRAFT'로 변경
-  csTypeId: 3, // 기본값 '기타문의'
+  noticeTypeId: 1, // 기본값 '공지'
 });
 
 const selectedFiles = ref([]);
@@ -18,12 +20,8 @@ const previewFiles = ref([]);
 const error = ref(null);
 
 const typeOptions = [
-  { id: 1, name: '배송문의' },
-  { id: 2, name: '결제문의' },
-  { id: 3, name: '기타문의' },
-  { id: 4, name: '상품문의' },
-  { id: 5, name: '환불/반품 문의' },
-  { id: 6, name: '판매 문의' },
+  { id: 1, name: '공지' },
+  { id: 2, name: '이벤트' },
 ];
 
 const statusOptions = ref([
@@ -47,7 +45,7 @@ function handleFileChange(event) {
 
 async function handleSubmit() {
   if (!newNotice.value.title || !newNotice.value.content || !newNotice.value.status) {
-    alert('제목, 내용, 상태를 모두 입력해주세요.');
+    showAlertDialog('알림', '제목, 내용, 상태를 모두 입력해주세요.');
     return;
   }
 
@@ -59,12 +57,12 @@ async function handleSubmit() {
       await addNoticeAttachments(noticeId, selectedFiles.value);
     }
 
-    alert('새 공지사항이 성공적으로 등록되었습니다.');
+    showAlertDialog('성공', '새 공지사항이 성공적으로 등록되었습니다.');
     router.push({ name: 'AdminNoticeList' });
   } catch (e) {
     console.error('공지사항 등록 실패:', e);
     error.value = '등록 중 오류가 발생했습니다.';
-    alert(error.value);
+    showAlertDialog('오류', error.value);
   }
 }
 
@@ -89,7 +87,7 @@ function goToList() {
           <div class="row">
             <div class="col-md-6 mb-3">
               <label for="notice-type" class="form-label">유형</label>
-              <select id="notice-type" class="form-select" v-model="newNotice.csTypeId" required>
+              <select id="notice-type" class="form-select" v-model="newNotice.noticeTypeId" required>
                 <option v-for="type in typeOptions" :key="type.id" :value="type.id">{{ type.name }}</option>
               </select>
             </div>

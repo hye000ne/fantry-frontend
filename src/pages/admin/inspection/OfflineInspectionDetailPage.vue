@@ -5,7 +5,9 @@ import { useModal } from '@/composables/useModal'
 import { estimatePrice, getMarketAvgPrice } from '@/api/checklist.js'
 import { getOfflineInspectionDetail, approveOfflineInspection, rejectOfflineInspection } from '@/api/adminInspection'
 import { useAdminInspectionStore } from '@/stores/adminInspectionStore'
+import { useAlertDialog } from '@/composables/useAlertDialog.js'
 
+const { showAlert } = useAlertDialog()
 const router = useRouter()
 const route = useRoute()
 const adminStore = useAdminInspectionStore()
@@ -47,6 +49,8 @@ onMounted(async () => {
   initImageModal()
   initApproveModal()
   initRejectModal()
+
+  refetchMarketAvg()
 })
 
 // 오프라인 검수 상세 API 조회
@@ -61,12 +65,12 @@ async function fetchDetail(id) {
     currentExpectedPrice.value = res.onlineDetail?.expectedPrice ?? null
 
     // 승인 모달 폼 초기값 설정
-    approveForm.finalBuyPrice = res.finalBuyPrice ?? res.onlineDetail?.expectedPrice ?? null
+    approveForm.finalBuyPrice = res.finalBuyPrice ?? res.onlineDetail?.sellerHopePrice ?? null
     approveForm.priceDeductionReason = res.priceDeductionReason ?? ''
     approveForm.inspectionNotes = res.inspectionNotes ?? ''
   } catch (err) {
     console.error('오프라인 검수 상세 조회 실패:', err)
-    alert(err.message || '데이터를 불러오는 데 실패했습니다.')
+    showAlert('오류', err.message || '데이터를 불러오는 데 실패했습니다.')
   } finally {
     loading.value = false
   }
@@ -87,9 +91,9 @@ async function recalculateExpectedPrice() {
 
     const newPrice = await estimatePrice(online.value.goodsCategoryId, selections)
     currentExpectedPrice.value = newPrice
-    alert('시스템 예상가가 업데이트되었습니다.')
+    showAlert('알림', '시스템 예상가가 업데이트되었습니다.')
   } catch (err) {
-    alert('예상가를 재계산하는 중 오류가 발생했습니다.')
+    showAlert('오류', '예상가를 재계산하는 중 오류가 발생했습니다.')
     console.error('예상가 재계산 실패:', err)
   } finally {
     loadingEstimate.value = false
@@ -99,16 +103,17 @@ async function recalculateExpectedPrice() {
 // 시세 재조회
 async function refetchMarketAvg() {
   if (!online.value?.artistId && !online.value?.goodsCategoryId) {
-    alert('시세 조회를 위한 필수 정보(카테고리, 아티스트)가 없습니다.')
+    showAlert('알림', '시세 조회를 위한 필수 정보(카테고리, 아티스트)가 없습니다.')
+
     return
   }
   loadingMarketAvg.value = true
   try {
     const res = await getMarketAvgPrice(online.value.goodsCategoryId, online.value.artistId, online.value.albumId)
     currentMarketAvgPrice.value = res.marketAvgPrice
-    alert('최신 시세 정보로 업데이트되었습니다.')
+    // showAlert('알림', '최신 시세 정보로 업데이트되었습니다.')
   } catch (err) {
-    alert('최신 시세 정보를 가져오는 데 실패했습니다.')
+    showAlert('오류', '최신 시세 정보를 가져오는 데 실패했습니다.')
   } finally {
     loadingMarketAvg.value = false
   }
@@ -117,7 +122,7 @@ async function refetchMarketAvg() {
 // 2차 승인 처리
 const approve = async () => {
   if (!approveForm.finalBuyPrice || Number(approveForm.finalBuyPrice) <= 0) {
-    alert('최종 매입가를 0보다 큰 값으로 입력해주세요.')
+    showAlert('알림', '최종 매입가를 0보다 큰 값으로 입력해주세요.')
     return
   }
 
@@ -140,11 +145,12 @@ const approve = async () => {
     console.log(payload)
     await approveOfflineInspection(inspectionId.value, payload)
     closeApproveModal()
-    alert('최종 승인이 완료되었습니다.')
+    showAlert('알림', '최종 승인이 완료되었습니다.')
+
     setTimeout(() => router.push('/admin/inspection/offline'), 300)
   } catch (err) {
     console.error('2차 승인 실패:', err)
-    alert(err.message || '승인 처리 중 오류가 발생했습니다.')
+    showAlert('오류', err.message || '승인 처리 중 오류가 발생했습니다.')
     loading.value = false
   }
 }
@@ -152,7 +158,8 @@ const approve = async () => {
 // 2차 반려 처리
 const reject = async () => {
   if (!rejectForm.secondRejectionReason || !rejectForm.secondRejectionReason.trim()) {
-    alert('반려 사유를 반드시 입력해야 합니다.')
+    showAlert('알림', '반려 사유를 반드시 입력해야 합니다.')
+
     return
   }
 
@@ -169,12 +176,12 @@ const reject = async () => {
   try {
     await rejectOfflineInspection(inspectionId.value, payload)
     closeRejectModal()
-    alert('반려 처리가 완료되었습니다.')
+    showAlert('알림', '반려 처리가 완료되었습니다.')
 
     setTimeout(() => router.push('/admin/inspection/offline'), 300)
   } catch (err) {
     console.error('2차 반려 실패:', err)
-    alert(err.message || '반려 처리 중 오류가 발생했습니다.')
+    showAlert('오류', err.message || '반려 처리 중 오류가 발생했습니다.')
     loading.value = false
   }
 }

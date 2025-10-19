@@ -149,7 +149,9 @@
     import { ref, computed } from 'vue';
     import { useRouter } from 'vue-router';
     import { registMember } from '@/api/member';
+    import { useAlertDialog } from '@/composables/useAlertDialog';
 
+    const { showAlert: showDialog } = useAlertDialog();
     const router = useRouter();
 
     const form = ref({
@@ -182,13 +184,13 @@
         
         // 비밀번호 확인
         if (form.value.password !== passwordConfirm.value) {
-            alert('비밀번호가 일치하지 않습니다.');
+            showDialog("⚠️주의", "비밀번호가 일치하지 않습니다.");
             return;
         }
 
         // roleId 확인
         if (!form.value.roleId) {
-            alert('권한을 선택해주세요.');
+            showDialog("⚠️주의", "권한을 선택해주세요.");
             return;
         }
 
@@ -212,14 +214,14 @@
             console.log('회원 추가 응답:', res);
 
             if (res.status === 200) {
-                alert('회원이 추가되었습니다.');
+                showDialog("✅안내", "회원이 추가되었습니다.");
                 router.push({ name: 'AdminMemberList' });
             } else {
-                alert(`등록 실패: ${res.data || '알 수 없는 오류'}`);
+                showDialog("🚫오류", `${res.data || '알 수 없는 오류'} 로 인해 회원 추가에 실패했습니다.`);
             }
         } catch (error) {
             console.error('회원 추가 중 오류 발생:', error);
-            alert('회원 추가 중 오류가 발생했습니다.');
+            showDialog("🚫오류", "회원 추가 중 오류가 발생했습니다.");
         } finally {
             saving.value = false;
         }

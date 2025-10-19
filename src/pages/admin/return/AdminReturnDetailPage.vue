@@ -1,347 +1,336 @@
-<script setup>
-import { ref, onMounted, computed } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { getAdminReturnDetail, updateAdminReturn } from '@/api/adminReturn.js';
-import { formatDateTime } from '@/utils/tableFormatters';
-
-const route = useRoute();
-const router = useRouter();
-
-const returnRequestId = ref(Number(route.params.returnRequestId));
-const returnRequest = ref(null);
-const loading = ref(false);
-const error = ref(null);
-
-const showRejectReasonModal = ref(false);
-const rejectReasonInput = ref('');
-const deductedShippingFeeInput = ref(0); // 차감 배송비 입력 필드
-
-// URL이 이미지 파일인지 확인하는 헬퍼 함수
-function isImage(url) {
-  return /\.(jpeg|jpg|gif|png|webp|bmp)$/i.test(url);
-}
-
-// 반품/환불 상세 정보 로드
-async function fetchReturnDetail() {
-  loading.value = true;
-  try {
-    const response = await getAdminReturnDetail(returnRequestId.value);
-    returnRequest.value = response.data;
-    // 기존 차감 배송비가 있으면 폼에 설정
-    deductedShippingFeeInput.value = returnRequest.value.deductedShippingFee || 0;
-  } catch (e) {
-    error.value = '환불/반품 정보를 불러오는 데 실패했습니다.';
-    console.error(e);
-  } finally {
-    loading.value = false;
-  }
-}
-
-// 상태 변경
-async function handleStatusChange(newStatus) {
-  const statusKorean = {
-    'IN_TRANSIT': '처리중',
-    'INSPECTING': '검수중',
-    'APPROVED': '승인',
-    'REJECTED': '거절',
-    'COMPLETED': '완료'
-  };
-
-  if (newStatus === 'REJECTED') {
-    showRejectReasonModal.value = true;
-    return;
-  }
-
-  if (!confirm(`상태를 '${statusKorean[newStatus] || newStatus}'(으)로 변경하시겠습니까?`)) return;
-  
-  await updateReturnRequest(newStatus);
-}
-
-async function confirmReject() {
-  if (!rejectReasonInput.value.trim()) {
-    alert('거절 사유를 입력해주세요.');
-    return;
-  }
-  if (!confirm(`상태를 '거절'로 변경하고 거절 사유를 저장하시겠습니까?`)) return;
-
-  showRejectReasonModal.value = false;
-  await updateReturnRequest('REJECTED', rejectReasonInput.value);
-  rejectReasonInput.value = ''; // 초기화
-}
-
-// 차감 배송비 업데이트
-async function updateDeductedShippingFee() {
-  if (!confirm(`차감 배송비를 ${deductedShippingFeeInput.value.toLocaleString()}원(으)로 저장하시겠습니까?`)) return;
-
-  loading.value = true;
-  try {
-    const payload = {
-      status: returnRequest.value.status, // 현재 상태 유지
-      deductedShippingFee: deductedShippingFeeInput.value,
-    };
-    await updateAdminReturn(returnRequestId.value, payload);
-    alert('차감 배송비가 성공적으로 저장되었습니다.');
-    await fetchReturnDetail(); // 정보 새로고침
-  } catch (e) {
-    error.value = '차감 배송비 저장 중 오류가 발생했습니다.';
-    console.error(e);
-  } finally {
-    loading.value = false;
-  }
-}
-
-async function updateReturnRequest(newStatus, rejectReason = null) {
-  loading.value = true;
-  try {
-    const payload = {
-      status: newStatus,
-      rejectReason: rejectReason,
-      deductedShippingFee: deductedShippingFeeInput.value, // 차감 배송비 추가
-      // memo 등 필요시 추가
-    };
-    await updateAdminReturn(returnRequestId.value, payload);
-    alert('상태가 성공적으로 변경되었습니다.');
-    await fetchReturnDetail(); // 정보 새로고침
-  } catch (e) {
-    error.value = '상태 변경 중 오류가 발생했습니다.';
-    console.error(e);
-  } finally {
-    loading.value = false;
-  }
-}
-
-const statusInfo = computed(() => {
-  if (!returnRequest.value) return {};
-  const status = returnRequest.value.status;
-  let badgeClass = 'bg-light text-dark';
-  let koreanText = status;
-  switch (status) {
-    case 'REQUESTED': badgeClass = 'bg-primary'; koreanText = '요청됨'; break;
-    case 'IN_TRANSIT': badgeClass = 'bg-info'; koreanText = '처리중'; break;
-    case 'INSPECTING': badgeClass = 'bg-warning'; koreanText = '검수중'; break;
-    case 'APPROVED': badgeClass = 'bg-success'; koreanText = '승인됨'; break;
-    case 'REJECTED': badgeClass = 'bg-danger'; koreanText = '거절됨'; break;
-    case 'COMPLETED': badgeClass = 'bg-dark'; koreanText = '완료됨'; break;
-    case 'USER_CANCELLED': badgeClass = 'bg-secondary'; koreanText = '사용자 취소'; break;
-    case 'DELETED': badgeClass = 'bg-danger bg-opacity-50'; koreanText = '삭제됨'; break;
-  }
-  return { badgeClass, koreanText };
-});
-
-
-function goBack() {
-  router.push('/admin/return/list');
-}
-
-onMounted(fetchReturnDetail);
-</script>
-
 <template>
-  <main class="container-fluid p-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-      <div>
-        <h4 class="fw-semibold text-dark mb-1">환불/반품 상세 정보</h4>
-        <p class="text-muted small">요청된 환불/반품 건의 상세 내역을 확인하고 처리 상태를 관리합니다.</p>
-      </div>
-      <button type="button" class="btn btn-outline-secondary" @click="goBack">
-        <i class="fas fa-list me-2"></i> 목록으로
-      </button>
+  <div class="container-fluid">
+    <h1 class="h3 mb-4 text-gray-800">환불/반품 요청 상세</h1>
+
+    <div v-if="loading" class="text-center py-5">
+      <LoadingSpinner />
     </div>
 
-    <div v-if="loading && !returnRequest" class="text-center py-5">
-      <div class="spinner-border text-primary" role="status">
-        <span class="visually-hidden">Loading...</span>
-      </div>
+    <div v-else-if="error" class="alert alert-danger" role="alert">
+      {{ error }}
     </div>
-    <div v-if="error" class="alert alert-danger">{{ error }}</div>
 
-    <div v-if="returnRequest" class="row">
-      <div class="col-lg-8">
-        <!-- 요청 상세 정보 -->
-        <div class="card shadow-sm border-0 rounded-3 mb-4">
-          <div class="card-header bg-white border-bottom-0 pt-4 px-4 pb-2">
-            <h5 class="fw-bold text-dark">요청 정보</h5>
-          </div>
-          <div class="card-body p-4">
-            <div class="row g-3">
-              <div class="col-md-6">
-                <p class="mb-1 text-muted small">요청 번호</p>
-                <p class="fw-bold">{{ returnRequest.returnRequestId }}</p>
-              </div>
-              <div class="col-md-6">
-                <p class="mb-1 text-muted small">현재 상태</p>
-                <p><span class="badge fs-6" :class="statusInfo.badgeClass">{{ statusInfo.koreanText }}</span></p>
-              </div>
-              <div class="col-md-6">
-                <p class="mb-1 text-muted small">요청일</p>
-                <p class="fw-bold">{{ formatDateTime(returnRequest.requestedAt) }}</p>
-              </div>
-              <div class="col-md-6">
-                <p class="mb-1 text-muted small">마지막 업데이트</p>
-                <p class="fw-bold">{{ formatDateTime(returnRequest.updatedAt) }}</p>
-              </div>
-              <div class="col-12">
-                <p class="mb-1 text-muted small">요청 사유</p>
-                <p class="fw-bold">{{ returnRequest.reason }}</p>
-              </div>
-              <div v-if="returnRequest.detailReason" class="col-12">
-                <p class="mb-1 text-muted small">상세 사유</p>
-                <p class="fw-bold">{{ returnRequest.detailReason }}</p>
-              </div>
-              <div v-if="returnRequest.rejectReason" class="col-12">
-                <p class="mb-1 text-muted small">거절 사유</p>
-                <p class="fw-bold text-danger">{{ returnRequest.rejectReason }}</p>
-              </div>
-              <div v-if="returnRequest.comment" class="col-12">
-                <p class="mb-1 text-muted small">관리자 메모</p>
-                <p class="fw-bold">{{ returnRequest.comment }}</p>
-              </div>
-              <div v-if="returnRequest.attachmentUrls && returnRequest.attachmentUrls.length > 0" class="col-12">
-                 <p class="mb-1 text-muted small">첨부 파일</p>
-                 <div class="d-flex flex-wrap gap-2">
-                    <div v-for="(url, index) in returnRequest.attachmentUrls" :key="index">
-                        <a :href="url" target="_blank" class="btn btn-sm btn-outline-info" v-if="!isImage(url)">
-                            <i class="fas fa-paperclip me-1"></i> 파일 {{ index + 1 }}
-                        </a>
-                        <a :href="url" target="_blank" v-else>
-                            <img :src="url" alt="Attachment Preview" class="img-thumbnail" style="max-width: 150px; max-height: 150px; object-fit: cover;">
-                        </a>
-                    </div>
-                 </div>
-              </div>
+    <div v-else-if="returnRequest">
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">요청 정보</h6>
+        </div>
+        <div class="card-body">
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <strong>요청 ID:</strong> {{ returnRequest.returnRequestId }}
+            </div>
+            <div class="col-md-6">
+              <strong>주문 ID:</strong> {{ returnRequest.orderId }}
             </div>
           </div>
-        </div>
-
-        <!-- 상품 정보 -->
-        <div class="card shadow-sm border-0 rounded-3 mb-4">
-           <div class="card-header bg-white border-bottom-0 pt-4 px-4 pb-2">
-            <h5 class="fw-bold text-dark">상품 정보</h5>
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <strong>구매자 이름:</strong> {{ returnRequest.buyerName }}
+            </div>
+            <div class="col-md-6">
+              <strong>연락처:</strong> 010-1234-5678
+            </div>
           </div>
-          <div class="card-body p-4">
-             <div v-if="returnRequest.items && returnRequest.items.length > 0">
-                <div v-for="(item, index) in returnRequest.items" :key="index" class="mb-3 pb-3 border-bottom">
-                    <div class="row g-3">
-                        <div class="col-md-6"><p class="mb-1 text-muted small">주문 번호</p><p class="fw-bold">{{ item.orderId }}</p></div>
-                        <div class="col-md-6"><p class="mb-1 text-muted small">상품명</p><p class="fw-bold">{{ item.productName }}</p></div>
-                        <div class="col-md-6"><p class="mb-1 text-muted small">판매 금액</p><p class="fw-bold">{{ item.itemSaleAmount?.toLocaleString() }}원</p></div>
-                        <div class="col-md-6"><p class="mb-1 text-muted small">수수료율</p><p class="fw-bold">{{ item.commissionRate }}%</p></div>
-                        <div class="col-md-6"><p class="mb-1 text-muted small">수수료 금액</p><p class="fw-bold">{{ item.commissionAmount?.toLocaleString() }}원</p></div>
-                        <div class="col-md-6"><p class="mb-1 text-muted small">총 정산 금액</p><p class="fw-bold">{{ item.totalAmount?.toLocaleString() }}원</p></div>
-                        <div class="col-md-6"><p class="mb-1 text-muted small">반품 여부</p><p class="fw-bold">{{ item.isReturned ? '예' : '아니오' }}</p></div>
-                    </div>
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <strong>이메일 주소:</strong> fantryuser@naver.com
+            </div>
+            <div class="col-md-6">
+              <strong>요청 일시:</strong> {{ formatDate(returnRequest.requestedAt) }}
+            </div>
+          </div>
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <strong>생성 관리자:</strong> {{ returnRequest.createdBy || 'N/A' }}
+            </div>
+            <div class="col-md-6">
+              <strong>최종 처리 관리자:</strong> {{ returnRequest.updatedBy || 'N/A' }}
+            </div>
+          </div>
+          <div class="row mb-3">
+            <div class="col-md-12">
+              <strong>환불/반품 사유:</strong> {{ formatReturnReason(returnRequest.reason) }}
+            </div>
+          </div>
+          <div class="row mb-3">
+            <div class="col-md-12">
+              <strong>상세 사유:</strong> {{ returnRequest.detailReason || '없음' }}
+            </div>
+          </div>
+          <div class="row mb-3">
+            <div class="col-md-12">
+              <strong>현재 상태:</strong> <span :class="getStatusClass(returnRequest.status)">{{ formatReturnStatus(returnRequest.status) }}</span>
+            </div>
+          </div>
+          <div class="row mb-3" v-if="returnRequest.attachmentUrls && returnRequest.attachmentUrls.length > 0">
+            <div class="col-md-12">
+              <strong>첨부 파일:</strong>
+              <div class="d-flex flex-wrap mt-2">
+                <div v-for="(url, index) in returnRequest.attachmentUrls" :key="index" class="p-1" style="max-width: 150px;">
+                  <a :href="url" target="_blank" class="d-block text-center text-decoration-none">
+                    <img v-if="isImage(url)" :src="url" class="img-thumbnail w-100 mb-1" alt="첨부 이미지">
+                    <i v-else class="fas fa-file fa-3x text-secondary mb-1"></i>
+                    <small class="d-block text-truncate" style="max-width: 100px;">{{ url.substring(url.lastIndexOf('/') + 1) }}</small>
+                  </a>
                 </div>
-             </div>
-             <div v-else class="alert alert-info">관련 상품 정보가 없습니다.</div>
-          </div>
-        </div>
-
-        <!-- 정산 정보 -->
-        <div class="card shadow-sm border-0 rounded-3 mb-4">
-          <div class="card-header bg-white border-bottom-0 pt-4 px-4 pb-2">
-            <h5 class="fw-bold text-dark">정산 정보</h5>
-          </div>
-          <div class="card-body p-4">
-            <div class="row g-3">
-              <div class="col-md-6">
-                <p class="mb-1 text-muted small">원래 결제 금액</p>
-                <p class="fw-bold">{{ returnRequest.originalPaymentAmount?.toLocaleString() }}원</p>
-              </div>
-              <div class="col-md-6">
-                <p class="mb-1 text-muted small">차감 배송비</p>
-                <p class="fw-bold">{{ returnRequest.deductedShippingFee?.toLocaleString() }}원</p>
-              </div>
-              <div class="col-md-6">
-                <p class="mb-1 text-muted small">최종 환불 금액</p>
-                <p class="fw-bold">{{ returnRequest.finalRefundAmount?.toLocaleString() }}원</p>
               </div>
             </div>
           </div>
+          <div class="row mb-3" v-else>
+            <div class="col-md-12">
+              <strong>첨부 파일:</strong> 첨부 파일 없음
+            </div>
+          </div>
         </div>
-
       </div>
 
-      <div class="col-lg-4">
-        <!-- 구매자 정보 -->
-        <div class="card shadow-sm border-0 rounded-3 mb-4">
-          <div class="card-header bg-white border-bottom-0 pt-4 px-4 pb-2">
-            <h5 class="fw-bold text-dark">구매자 정보</h5>
-          </div>
-          <div class="card-body p-4">
-            <p class="mb-1 text-muted small">이름</p>
-            <p class="fw-bold">{{ returnRequest.buyerName }}</p>
-            <p class="mb-1 text-muted small">요청자</p>
-            <p class="fw-bold">{{ returnRequest.createdBy || 'N/A' }}</p>
-          </div>
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">결제 및 환불 금액</h6>
         </div>
-
-        <!-- 상태 관리 -->
-        <div class="card shadow-sm border-0 rounded-3">
-          <div class="card-header bg-white border-bottom-0 pt-4 px-4 pb-2">
-            <h5 class="fw-bold text-dark">요청 처리</h5>
-          </div>
-          <div class="card-body p-4">
-            <p class="text-muted small mb-3">요청 상태를 변경합니다. 상태 변경은 되돌릴 수 없으니 신중하게 결정해주세요.</p>
-            <div class="d-grid gap-2">
-              <button class="btn btn-info" @click="handleStatusChange('IN_TRANSIT')" :disabled="loading || returnRequest.status === 'IN_TRANSIT'">처리중으로 변경</button>
-              <button class="btn btn-warning" @click="handleStatusChange('INSPECTING')" :disabled="loading || returnRequest.status === 'INSPECTING'">검수중으로 변경</button>
-              <button class="btn btn-success" @click="handleStatusChange('APPROVED')" :disabled="loading || returnRequest.status === 'APPROVED'">승인</button>
-              <button class="btn btn-danger" @click="handleStatusChange('REJECTED')" :disabled="loading || returnRequest.status === 'REJECTED'">거절</button>
-              <button class="btn btn-dark" @click="handleStatusChange('COMPLETED')" :disabled="loading || returnRequest.status === 'COMPLETED'">완료 처리</button>
+        <div class="card-body">
+          <div class="row mb-3">
+            <div class="col-md-4">
+              <strong>원 결제 금액:</strong> {{ formatCurrency(returnRequest.originalPaymentAmount) }}
+            </div>
+            <div class="col-md-4">
+              <strong>차감된 배송비:</strong> {{ formatCurrency(returnRequest.deductedShippingFee) }}
+            </div>
+            <div class="col-md-4">
+              <strong>최종 환불 금액:</strong> {{ formatCurrency(returnRequest.finalRefundAmount) }}
             </div>
           </div>
         </div>
-
-        <!-- 차감 배송비 입력 -->
-        <div class="card shadow-sm border-0 rounded-3 mt-4">
-          <div class="card-header bg-white border-bottom-0 pt-4 px-4 pb-2">
-            <h5 class="fw-bold text-dark">차감 배송비 설정</h5>
-          </div>
-          <div class="card-body p-4">
-            <div class="input-group mb-3">
-              <span class="input-group-text">₩</span>
-              <input type="number" class="form-control" v-model.number="deductedShippingFeeInput" min="0" :disabled="loading">
-              <button class="btn btn-primary" type="button" @click="updateDeductedShippingFee" :disabled="loading">저장</button>
-            </div>
-            <small class="form-text text-muted">환불 시 차감할 배송비를 입력하고 저장하세요.</small>
-          </div>
-        </div>
-
       </div>
-    </div>
 
-    <!-- 거절 사유 입력 모달 -->
-    <div v-if="showRejectReasonModal" class="modal fade show" style="display: block; background-color: rgba(0,0,0,0.5);" tabindex="-1" aria-labelledby="rejectReasonModalLabel" aria-hidden="true">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="rejectReasonModalLabel">거절 사유 입력</h5>
-            <button type="button" class="btn-close" @click="showRejectReasonModal = false" aria-label="Close"></button>
-          </div>
-          <div class="modal-body">
-            <div class="mb-3">
-              <label for="reject-reason-text" class="form-label">거절 사유</label>
-              <textarea class="form-control" id="reject-reason-text" rows="3" v-model="rejectReasonInput"></textarea>
+      <div class="card shadow mb-4">
+        <a href="#collapseStatusHistory" class="d-block card-header py-3" data-toggle="collapse" role="button" aria-expanded="true" aria-controls="collapseStatusHistory">
+          <h6 class="m-0 font-weight-bold text-primary">상태 변경 이력</h6>
+        </a>
+        <div class="collapse show" id="collapseStatusHistory">
+          <div class="card-body">
+            <div v-if="returnRequest.statusHistories && returnRequest.statusHistories.length > 0">
+              <div v-for="(history, index) in returnRequest.statusHistories" :key="index" class="mb-2 pb-2 border-bottom">
+                <p class="mb-1">
+                  <strong>변경 일시:</strong> {{ formatDate(history.updatedAt) }}<br>
+                  <strong>변경자:</strong> {{ history.updatedBy || 'System' }}<br>
+                  <strong>이전 상태:</strong> {{ formatReturnStatus(history.previousStatus) }}<br>
+                  <strong>새로운 상태:</strong> <span :class="getStatusClass(history.newStatus)">{{ formatReturnStatus(history.newStatus) }}</span><br>
+                  <strong>메모:</strong> {{ history.memo || '없음' }}
+                </p>
+              </div>
+            </div>
+            <div v-else>
+              상태 변경 이력 없음
             </div>
           </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" @click="showRejectReasonModal = false">취소</button>
-            <button type="button" class="btn btn-primary" @click="confirmReject">확인</button>
-          </div>
+        </div>
+      </div>
+
+      <div class="card shadow mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">환불/반품 요청 처리</h6>
+        </div>
+        <div class="card-body">
+          <form @submit.prevent="updateReturnRequest">
+            <div class="form-group">
+              <label for="statusSelect">상태 변경</label>
+              <select id="statusSelect" class="form-control" v-model="updateForm.status">
+                <option v-for="status in availableStatuses" :key="status.value" :value="status.value">
+                  {{ status.label }}
+                </option>
+              </select>
+            </div>
+
+            <div class="form-group" v-if="updateForm.status === 'REJECTED'">
+              <label for="rejectReason">거절 사유 <span class="text-danger">*</span></label>
+              <textarea id="rejectReason" class="form-control" v-model="updateForm.rejectReason" rows="3" required></textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="deductedShippingFee">차감 배송비</label>
+              <input type="number" id="deductedShippingFee" class="form-control" v-model.number="updateForm.deductedShippingFee" step="0.01" min="0">
+            </div>
+
+            <div class="form-group">
+              <label for="adminMemo">관리자 메모</label>
+              <textarea id="adminMemo" class="form-control" v-model="updateForm.memo" rows="3"></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary" :disabled="isUpdating">
+              <span v-if="isUpdating" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+              {{ isUpdating ? '처리 중...' : '상태 업데이트' }}
+            </button>
+          </form>
         </div>
       </div>
     </div>
-  </main>
+    </div>
 </template>
 
-<style scoped>
-.img-thumbnail {
-  border: 1px solid #ddd;
-  padding: 3px;
-  border-radius: 5px;
-}
+<script setup>
+import { ref, onMounted, computed } from 'vue';
+import { useRoute } from 'vue-router';
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue';
+import { getAdminReturnRequestDetail, updateAdminReturnRequestStatus } from '@/api/adminReturn'; // Assuming this API file exists
+import { useAlertDialog } from '@/composables/useAlertDialog'; // Assuming this composable exists
 
-.gap-2 {
-  gap: 0.5rem;
-}
+const route = useRoute();
+const { showAlert } = useAlertDialog();
+
+const returnRequest = ref(null);
+const loading = ref(true);
+const error = ref(null);
+const isUpdating = ref(false);
+
+const updateForm = ref({
+  status: '',
+  deductedShippingFee: 0,
+  rejectReason: '',
+  memo: '',
+});
+
+const availableStatuses = [
+  { value: 'REQUESTED', label: '요청됨' },
+  { value: 'IN_TRANSIT', label: '수거 중' },
+  { value: 'INSPECTING', label: '검수 중' },
+  { value: 'APPROVED', label: '승인됨' },
+  { value: 'REJECTED', label: '거절됨' },
+  { value: 'COMPLETED', label: '처리 완료' },
+  { value: 'USER_CANCELLED', label: '사용자 철회' },
+];
+
+const fetchReturnRequestDetail = async () => {
+  loading.value = true;
+        error.value = null;
+        try {
+          const returnRequestId = route.params.returnRequestId;    console.log(`GET 요청: /api/admin/returns/${returnRequestId}`);
+    const response = await getAdminReturnRequestDetail(returnRequestId);
+    console.log('GET 응답:', response);
+    returnRequest.value = response;
+    updateForm.value.status = returnRequest.value.status;
+    updateForm.value.deductedShippingFee = returnRequest.value.deductedShippingFee || 0;
+    updateForm.value.rejectReason = returnRequest.value.rejectReason || '';
+    updateForm.value.memo = returnRequest.value.comment || '';
+  } catch (err) {
+    console.error('환불/반품 요청 상세 조회 실패:', err);
+    error.value = '환불/반품 요청 상세 정보를 불러오는데 실패했습니다.';
+    showAlert('오류', error.value);
+  } finally {
+    loading.value = false;
+  }
+};
+
+const updateReturnRequest = async () => {
+  if (updateForm.value.status === 'REJECTED' && !updateForm.value.rejectReason) {
+    showAlert('경고', '거절 사유를 입력해주세요.');
+    return;
+  }
+
+  isUpdating.value = true;
+  try {
+    const returnRequestId = route.params.returnRequestId;
+    const payload = {
+      status: updateForm.value.status,
+      deductedShippingFee: updateForm.value.deductedShippingFee,
+      rejectReason: updateForm.value.status === 'REJECTED' ? updateForm.value.rejectReason : null,
+      memo: updateForm.value.memo,
+    };
+    console.log(`PATCH 요청: /api/admin/returns/${returnRequestId}`);
+    console.log('PATCH 요청 본문:', payload);
+    const response = await updateAdminReturnRequestStatus(returnRequestId, payload);
+    console.log('PATCH 응답:', response);
+    showAlert('성공', '환불/반품 요청 상태가 업데이트되었습니다.');
+    await fetchReturnRequestDetail(); // Refresh data
+  } catch (err) {
+    console.error('환불/반품 요청 상태 업데이트 실패:', err);
+    showAlert('오류', '환불/반품 요청 상태 업데이트에 실패했습니다.');
+  } finally {
+    isUpdating.value = false;
+  }
+};
+
+const formatDate = (datetime) => {
+  if (!datetime) return 'N/A';
+
+  let date;
+  if (Array.isArray(datetime)) {
+    // Assuming datetime is [year, month, day, hour, minute, second, millisecond]
+    // Month is 0-indexed in JavaScript Date, so subtract 1 from the month value
+    date = new Date(datetime[0], datetime[1] - 1, datetime[2], datetime[3], datetime[4], datetime[5] || 0, datetime[6] || 0);
+  } else {
+    // Assume it's a string that Date constructor can parse
+    date = new Date(datetime);
+  }
+
+  // Check if the date is valid before formatting
+  if (isNaN(date.getTime())) {
+    return 'Invalid Date';
+  }
+
+  return date.toLocaleString('ko-KR');
+};
+
+const formatCurrency = (amount) => {
+  if (amount === undefined || amount === null) return 'N/A';
+  return new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(amount);
+};
+
+const formatReturnReason = (reason) => {
+  const reasons = {
+    SIMPLE_CHANGE_OF_MIND: '단순 변심',
+    PRODUCT_DEFECT: '상품 불량',
+    SHIPPING_ERROR: '배송 오류',
+    ETC: '기타',
+  };
+  return reasons[reason] || reason;
+};
+
+const formatReturnStatus = (status) => {
+  const statuses = {
+    REQUESTED: '요청됨',
+    IN_TRANSIT: '수거 중',
+    INSPECTING: '검수 중',
+    APPROVED: '승인됨',
+    REJECTED: '거절됨',
+    COMPLETED: '처리 완료',
+    USER_CANCELLED: '사용자 철회',
+    DELETED: '삭제됨',
+  };
+  return statuses[status] || status;
+};
+
+const getStatusClass = (status) => {
+  switch (status) {
+    case 'REQUESTED':
+      return 'badge badge-info';
+    case 'IN_TRANSIT':
+      return 'badge badge-warning';
+    case 'INSPECTING':
+      return 'badge badge-primary';
+    case 'APPROVED':
+      return 'badge badge-success';
+    case 'REJECTED':
+      return 'badge badge-danger';
+    case 'COMPLETED':
+      return 'badge badge-secondary';
+    case 'USER_CANCELLED':
+      return 'badge badge-dark';
+    default:
+      return 'badge badge-light';
+  }
+};
+
+const isImage = (url) => {
+  return /\.(jpeg|jpg|png|gif|webp|svg)$/i.test(url);
+};
+
+onMounted(() => {
+  fetchReturnRequestDetail();
+});
+</script>
+
+<style scoped>
+/* 필요한 스타일 추가 */
 </style>

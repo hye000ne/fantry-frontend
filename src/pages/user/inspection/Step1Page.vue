@@ -7,11 +7,11 @@ import SelectedArtistModal from '@/pages/user/inspection/SelectedArtistModal.vue
 import SelectedAlbumModal from '@/pages/user/inspection/SelectedAlbumModal.vue'
 import { useInspectionStore } from '@/stores/inspectionStore'
 import { storeToRefs } from 'pinia'
-import { useAlertDialog } from '@/composables/useAlertDialog.js';
+import { useAlertDialog } from '@/composables/useAlertDialog.js'
 
 const router = useRouter()
 const inspectionStore = useInspectionStore()
-const {showAlert} = useAlertDialog();
+const { showAlert } = useAlertDialog()
 
 // Store 값
 const {
@@ -56,13 +56,6 @@ const isMarketAvgCalculated = ref(false) // 평균 시세 조회 완료 여부
 const isCategoryDisabled = computed(() => loadingInitial.value)
 const isArtistDisabled = computed(() => loadingInitial.value)
 const isAlbumDisabled = computed(() => !selectedArtist.value || loadingAlbums.value)
-
-// 상품명 미리보기 텍스트
-const previewText = computed(() => {
-  const ak = selectedArtist.value?.nameKo || '[아티스트]'
-  const nm = itemName.value || '[상품명]'
-  return `${ak} ${nm}`
-})
 
 // 체크리스트 필드 파싱
 const fields = computed(() => {
@@ -210,7 +203,7 @@ const onEstimate = async () => {
 // 평균 시세 조회
 const onFetchMarketAvg = async () => {
   if (!selectedCategory.value || !selectedArtist.value) {
-    alert('카테고리와 아티스트를 먼저 선택해주세요.')
+    showAlert('알림', '카테고리와 아티스트를 먼저 선택해주세요.')
     return
   }
 
@@ -224,7 +217,7 @@ const onFetchMarketAvg = async () => {
     marketAvgCount.value = res.count
     isMarketAvgCalculated.value = true
   } catch (err) {
-    alert('평균 시세를 조회하는 중 오류가 발생했습니다.')
+    showAlert('알림', '평균 시세를 조회하는 중 오류가 발생했습니다.')
     marketAvgPrice.value = null
     marketAvgCount.value = 0
   } finally {
@@ -236,7 +229,7 @@ const onFetchMarketAvg = async () => {
 const validateChecklist = () => {
   for (const f of fields.value) {
     if (f.required && (answers.value[f.itemKey] === null || answers.value[f.itemKey] === '')) {
-      alert(`'${f.label}' 항목을 선택해주세요.`)
+      showAlert('알림', `'${f.label}' 항목을 선택해주세요.`)
       return false
     }
   }
@@ -246,19 +239,19 @@ const validateChecklist = () => {
 const validateAll = () => {
   // 상품 정보 검증
   if (!selectedCategory.value) {
-    alert('카테고리를 선택해주세요.')
+    showAlert('알림', `카테고리를 선택해주세요.`)
     return false
   }
   if (!selectedArtist.value) {
-    alert('아티스트를 선택해주세요.')
+    showAlert('알림', `아티스트를 선택해주세요.`)
     return false
   }
   if (!itemName.value || !itemName.value.trim()) {
-    alert('상품명을 입력해주세요.')
+    showAlert('알림', `상품명을 입력해주세요.`)
     return false
   }
   if (!itemDescription.value || !itemDescription.value.trim()) {
-    alert('상품 설명을 입력해주세요.')
+    showAlert('알림', `상품 설명을 입력해주세요.`)
     return false
   }
 
@@ -267,15 +260,15 @@ const validateAll = () => {
 
   // 3. 가격 정보 검증
   if (!isPriceCalculated.value) {
-    alert('시스템 예상가를 다시 계산해주세요.')
+    showAlert('알림', `시스템 예상가를 다시 계산해주세요.`)
     return false
   }
   if (!isMarketAvgCalculated.value) {
-    alert('평균 시세를 조회해주세요.')
+    showAlert('알림', `평균 시세를 조회해주세요.`)
     return false
   }
   if (sellerHopePrice.value === null || sellerHopePrice.value <= 0) {
-    alert('판매 희망가를 0보다 큰 값으로 입력해주세요.')
+    showAlert('알림', `판매 희망가를 0보다 큰 값으로 입력해주세요.`)
     return false
   }
 
@@ -406,11 +399,6 @@ watch(
               <div class="form-group">
                 <label class="font-weight-medium"> 상품명 <span class="text-danger">*</span> </label>
                 <input type="text" class="form-control" placeholder="예: 한정판 포토카드" v-model="itemName" />
-              </div>
-
-              <!-- 미리보기 -->
-              <div class="form-group">
-                <small class="text-muted">미리보기: {{ previewText }}</small>
               </div>
 
               <!-- 설명 -->

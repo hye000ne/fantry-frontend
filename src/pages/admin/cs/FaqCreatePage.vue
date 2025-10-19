@@ -3,8 +3,10 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { createFaq, addFaqAttachments } from '@/api/adminFaq.js';
 import CommonEditor from '@/components/common/organisms/CommonEditor.vue';
+import { useAlertDialog } from '@/composables/useAlertDialog';
 
 const router = useRouter();
+const { showAlert: showAlertDialog } = useAlertDialog();
 
 const newFaq = ref({
   csTypeId: null,
@@ -41,7 +43,7 @@ function handleFileChange(event) {
 
 async function handleSubmit() {
   if (!newFaq.value.csTypeId || !newFaq.value.title || !newFaq.value.content) {
-    alert('모든 필드를 입력해주세요.');
+    showAlertDialog('알림', '모든 필드를 입력해주세요.');
     return;
   }
 
@@ -53,12 +55,12 @@ async function handleSubmit() {
       await addFaqAttachments(faqId, selectedFiles.value);
     }
 
-    alert('새 FAQ가 성공적으로 등록되었습니다.');
+    showAlertDialog('성공', '새 FAQ가 성공적으로 등록되었습니다.');
     router.push({ name: 'AdminFaqList' });
   } catch (e) {
     console.error('FAQ 등록 실패:', e);
     error.value = '등록 중 오류가 발생했습니다.';
-    alert(error.value);
+    showAlertDialog('오류', error.value);
   }
 }
 

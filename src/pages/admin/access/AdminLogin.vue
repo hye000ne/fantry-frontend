@@ -3,7 +3,9 @@
     import { ref } from 'vue';
     import { login } from '@/api/login';
     import { useUserStore } from '@/stores/userStore'
+    import { useAlertDialog } from '@/composables/useAlertDialog';
 
+    const { showAlert: showDialog } = useAlertDialog();
     const userStore = useUserStore();
 
     const router = useRouter();
@@ -24,7 +26,7 @@
         // 관리자 인증 성공 시 처리
         const userRole = response.data.tokenMemberResponse.role;
         if (userRole !== 'ADMIN' && userRole !== 'SADMIN') {
-            alert('관리자 권한이 없습니다. 관리자 계정으로 로그인해주세요.');
+            showDialog("⚠️주의", "관리자 권한이 없습니다. 관리자 계정으로 로그인해주세요.");
             return;
         }
         // 관리자 토큰 저장
@@ -36,14 +38,14 @@
       } catch(error) {
             // 로그인 실패 처리
             console.log("로그인에 실패함: " + error);
-            alert('관리자 로그인에 실패했습니다. 아이디와 비밀번호를 확인해주세요.');
+            showDialog("🚫오류", '관리자 로그인에 실패했습니다. 아이디와 비밀번호를 확인해주세요.');
         }
     }
 
     // 관리자용 비밀번호 찾기 페이지로 이동
     const goToFind = () => {
         console.log("관리자 비밀번호 찾기 클릭됨");
-        alert("슈퍼 관리자에게 문의하세요.");
+        showDialog("✅안내", "슈퍼 관리자에게 문의하세요.");
         //router.push('/admin/login/find');
     }
 

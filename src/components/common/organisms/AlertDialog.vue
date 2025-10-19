@@ -4,7 +4,7 @@ import { useModal } from '@/composables/useModal.js';
 import { useAlertDialog } from '@/composables/useAlertDialog.js';
 
 // 모달의 상태(제목, 내용, 노출 여부)
-const { isVisible, title, message } = useAlertDialog();
+const { isVisible, title, message, isConfirm, confirmDialog } = useAlertDialog(); // Get isConfirm and confirmDialog
 
 // 부트스트랩 모달 제어
 const { initModal, show: showModal, hide: hideModal } = useModal('#alert-dialog-global');
@@ -15,7 +15,11 @@ onMounted(() => {
 
     // 부트스트랩 모달이 닫힐 때 (배경 클릭, ESC 키 등) isVisible 상태를 동기화합니다.
     modalEl.addEventListener('hidden.bs.modal', () => {
-        isVisible.value = false;
+        if (isConfirm.value) { // If it's a confirmation dialog, treat closing as cancellation
+            confirmDialog(false);
+        } else {
+            isVisible.value = false;
+        }
     });
 
     // isVisible 상태를 감시하여 부트스트랩 모달을 열거나 닫습니다.
@@ -36,7 +40,7 @@ onMounted(() => {
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title" id="alertDialogLabel">{{ title }}</h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close" @click="isVisible = false">
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close" @click="isConfirm ? confirmDialog(false) : isVisible = false">
              <span aria-hidden="true">&times;</span>
           </button>
         </div>
@@ -44,7 +48,8 @@ onMounted(() => {
           <p v-html="message"></p>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-primary" @click="isVisible = false">확인</button>
+          <button type="button" class="btn btn-secondary" data-dismiss="modal" v-if="isConfirm" @click="confirmDialog(false)">취소</button>
+          <button type="button" class="btn btn-primary" @click="confirmDialog(true)">확인</button>
         </div>
       </div>
     </div>

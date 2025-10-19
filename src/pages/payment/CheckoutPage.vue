@@ -3,8 +3,8 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter, onBeforeRouteLeave } from 'vue-router'
 import CardHeader from './components/atoms/CardHeader.vue'
 import { Payment } from '@/module/paymentModule'
-import openDialog from '@/module/dialog'
 import { usePaymentStore } from '@/stores/paymentStore'
+import { showAlert, useAlertDialog } from '@/composables/useAlertDialog'
 
 const router = useRouter()
 const paymentStore = usePaymentStore()
@@ -30,7 +30,7 @@ const goBackToUserInfo = () => {
 
 const requestPayment = () => {
   if (!userInfo.value || !deliveryInfo.value || !auctionDetails.value) {
-    openDialog('주문자 정보가 없습니다. 다시 시도해주세요.')
+    showAlert('알림','주문자 정보가 없습니다. 다시 시도해주세요.')
     goBackToUserInfo()
     return
   }
@@ -77,18 +77,107 @@ const requestPayment = () => {
         }),
       )
 
-      router.push({ name: 'Complete' })
+      // 결제 완료 페이지로 이동 (히스토리 스택 정리 위해 replace 사용)
+      router.replace({ name: 'Complete' })
     } else {
-      openDialog(response.data?.errorMessage || '결제에 실패했습니다.')
+      showAlert('결제 실패',response.data?.errorMessage || '결제에 실패했습니다.')
     }
   }
 
   const onError = (error) => {
     console.error('결제 에러:', error)
-    const errorMessage =
-      typeof error === 'string' ? error : error?.errorMessage || '결제 처리 중 오류가 발생했습니다.'
-    openDialog(errorMessage)
+
+    // 에러 객체 파싱
+    const errorData = typeof error === 'string'
+      ? { message: error }
+      : error?.data || error
+
+    const errorCode = errorData?.code
+    const errorMessage = errorData?.message || '결제 처리 중 오류가 발생했습니다.'
+
+    // 에러 코드별 분기 처리
+    switch(errorCode) {
+      // 인증 에러 - 페이지 새로고침
+      case 'PAY001':
+      case 'PAY022':
+        showAlert('결제 실패', errorMessage + '\n페이지를 새로고침합니다.')
+        setTimeout(() => window.location.reload(), 2000)
+        break
+
+      // 시스템 설정 오류 - 고객센터 안내
+      case 'PAY002':
+      case 'PAY003':
+      case 'PAY004':
+        showAlert('시스템 오류', '시스템 오류가 발생했습니다.\n고객센터로 문의해주세요.')
+        break
+
+      // 결제 금액 불일치 - 경매 상세로 이동
+      case 'PAY014':
+        showAlert('결제 실패', errorMessage + '\n상품 페이지로 이동합니다.')
+        setTimeout(() => {
+          if (auctionDetails.value?.auctionId) {
+            router.push({ name: 'AuctionDetail', params: { id: auctionDetails.value.auctionId } })
+          } else {
+            router.push({ name: 'Home' })
+          }
+        }, 2000)
+        break
+
+      // 상품 판매 불가 - 홈으로 이동
+      case 'PAY021':
+        showAlert('결제 불가', errorMessage)
+        setTimeout(() => router.push({ name: 'Home' }), 2000)
+        break
+
+      // 결제 정보 없음 - 홈으로 이동
+      case 'PAY013':
+        showAlert('결제 실패', errorMessage)
+        setTimeout(() => router.push({ name: 'Home' }), 2000)
+        break
+
+      // 동시 결제 진행 중
+      case 'PAY020':
+        showAlert(
+          '결제 진행 중',
+          '이미 진행 중인 결제가 있습니다.\n결제를 완료하거나 취소 후 다시 시도해주세요.'
+        )
+        break
+
+      // 이미 취소된 결제
+      case 'PAY023':
+        showAlert('결제 실패', errorMessage)
+        setTimeout(() => router.push({ name: 'Home' }), 2000)
+        break
+
+      // 네트워크/타임아웃 에러 - 재시도 유도
+      case 'PAY010':
+      case 'PAY011':
+      case 'PAY012':
+        showAlert('일시적 오류', errorMessage + '\n잠시 후 다시 시도해주세요.')
+        break
+
+      // 결제 승인 실패 - 재시도 유도
+      case 'PAY008':
+      case 'PAY017':
+        showAlert('결제 실패', errorMessage + '\n다시 시도하거나 다른 결제수단을 이용해주세요.')
+        break
+
+      // 치명적 에러 - 고객센터 긴급 문의
+      case 'PAY007':
+      case 'PAY009':
+        showAlert(
+          '결제 오류',
+          errorMessage + '\n고객센터로 긴급 문의해주세요.'
+        )
+        break
+
+      // 기타 에러 - 일반 처리
+      default:
+        showAlert('결제 실패', errorMessage)
+        break
+    }
   }
+
   const metadata = {
     userInfo: userInfo.value,
     deliveryInfo: deliveryInfo.value,
@@ -98,7 +187,6 @@ const requestPayment = () => {
       itemPrice: auctionDetails.value.currentPrice,
     },
   }
-  console.log("메타데이터",metadata);
   
   // 결제 요청 실행
   Payment.purchase(member, item, totalPrice.value, metadata, onResponse, onError)
@@ -116,10 +204,9 @@ onMounted(() => {
     deliveryInfo.value = { ...paymentStore.deliveryInfo }
     auctionDetails.value = paymentStore.auctionDetails
   } else {
-    // 유효성 검사 실패 시 이전 페이지로 리다이렉트
-    console.warn('결제 플로우가 유효하지 않습니다. 이전 페이지로 이동합니다.')
-    openDialog('주문 정보를 먼저 입력해주세요.')
-    goBackToUserInfo()
+    // 유효성 검사 실패 시 조용히 홈으로 리다이렉트 (결제 완료 후 뒤로가기 시나리오)
+    console.warn('결제 플로우가 유효하지 않습니다. 홈으로 이동합니다.')
+    router.replace({ name: 'Home' })
     return
   }
 
@@ -144,7 +231,7 @@ onBeforeRouteLeave((to, _from, next) => {
     <div class="container-fluid">
       <div
         class="d-flex flex-column align-items-center justify-content-center"
-        style="min-height: 300px"
+        style="min-height: 100px"
       >
         <h1 class="hero-title mb-3">주문 최종 확인</h1>
         <p class="hero-subtitle">결제 전 주문 내용을 확인해주세요</p>

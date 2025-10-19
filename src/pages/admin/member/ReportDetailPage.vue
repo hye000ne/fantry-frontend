@@ -55,7 +55,9 @@
   import { ref, onMounted } from 'vue';
   import { useRouter } from 'vue-router';
   import { getReportDetail } from '@/api/report';
+  import { useAlertDialog } from '@/composables/useAlertDialog';
 
+  const { showAlert: showDialog } = useAlertDialog();
   const router = useRouter();
 
   const report = ref(null);
@@ -65,7 +67,7 @@
   onMounted(async () => {
     const reportId = router.currentRoute.value.params.reportId;
     if (!reportId) {
-      alert('유효하지 않은 접근입니다.');
+      showDialog("🚫경고", "유효하지 않은 접근입니다.");
       router.back();
       return;
     }
@@ -76,7 +78,7 @@
       report.value = response.data.report;    
     } catch (error) {
       console.error(error);
-      alert('신고 정보를 불러오는데 실패했습니다.');
+      showDialog("🚫경고", "신고 정보를 불러오는데 실패했습니다.");
     } finally {
       loading.value = false;
     }

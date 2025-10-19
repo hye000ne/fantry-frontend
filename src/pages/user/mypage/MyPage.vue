@@ -13,11 +13,10 @@ import SalesHistory from './selling/SalesHistory.vue'
 //구매 관리
 import AuctionHistory from './buying/AuctionHistory.vue'
 import OrderHistory from './buying/OrderHistory.vue'
-//고객 센터
-import MypageInquiry from './support/MypageInquiry.vue'
 
 const activeMenu = ref('account')
 const activeSubMenu = ref('profile')
+const isMobileSidebarOpen = ref(false)
 
 // 컴포넌트 매핑
 const componentMap = {
@@ -34,8 +33,6 @@ const componentMap = {
   //구매 관리===========================
   'auction-history': AuctionHistory,
   'order-history': OrderHistory,
-  //고객 센터===========================
-  'inquiry': MypageInquiry,
 }
 
 const currentComponent = computed(()=>{
@@ -75,20 +72,24 @@ const menuItems = [
       { id: 'auction-history', title: '경매/입찰 내역' },
       { id: 'order-history', title: '주문 내역' }
     ]
-  },
-  {
-    id: 'support',
-    title: '고객센터',
-    icon: '💬',
-    subMenus: [
-      { id: 'inquiry', title: '문의 접수' }
-    ]
   }
 ]
 
 const selectMenu = (menuId, subMenuId) => {
   activeMenu.value = menuId
   activeSubMenu.value = subMenuId
+  // 모바일에서 메뉴 선택 시 사이드바 자동 닫기
+  if (window.innerWidth <= 768) {
+    isMobileSidebarOpen.value = false
+  }
+}
+
+const toggleMobileSidebar = () => {
+  isMobileSidebarOpen.value = !isMobileSidebarOpen.value;
+}
+
+const closeMobileSidebar = () => {
+  isMobileSidebarOpen.value = false;
 }
 
 const getContentTitle = () => {
@@ -101,10 +102,30 @@ const getContentTitle = () => {
 <template>
   <div class="content-page">
     <div class="mypage-container">
+      <!-- 모바일 헤더 -->
+      <div class="mobile-header">
+        <button class="hamburger-btn" @click="toggleMobileSidebar" aria-label="메뉴 열기">
+          <span class="hamburger-line"></span>
+          <span class="hamburger-line"></span>
+          <span class="hamburger-line"></span>
+        </button>
+        <h1>{{ getContentTitle() }}</h1>
+      </div>
+
+      <!-- 오버레이 -->
+      <div 
+        class="sidebar-overlay" 
+        :class="{ active: isMobileSidebarOpen }"
+        @click="closeMobileSidebar"
+      ></div>
+
       <!-- 좌측 사이드바 -->
-      <aside class="sidebar">
+      <aside class="sidebar" :class="{ 'mobile-open': isMobileSidebarOpen }">
         <div class="sidebar-header">
           <h1>마이페이지</h1>
+          <button class="close-btn" @click="closeMobileSidebar" aria-label="메뉴 닫기">
+            ✕
+          </button>
         </div>
         
         <nav class="sidebar-nav">
@@ -161,6 +182,30 @@ const getContentTitle = () => {
   grid-template-columns: 280px 1fr;
   gap: 30px;
   align-items: start;
+  position: relative;
+}
+
+/* 모바일 헤더 (기본적으로 숨김) */
+.mobile-header {
+  display: none;
+}
+
+/* 사이드바 오버레이 (모바일용) */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 998;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.sidebar-overlay.active {
+  opacity: 1;
 }
 
 /* 사이드바 스타일 */
@@ -181,13 +226,36 @@ const getContentTitle = () => {
   padding: 30px 24px;
   color: white;
   flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .sidebar-header h1 {
   margin: 0;
   font-size: 24px;
   font-weight: 700;
-  color: white
+  color: white;
+}
+
+.close-btn {
+  display: none;
+  background: none;
+  border: none;
+  color: white;
+  font-size: 28px;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .sidebar-nav {
@@ -339,24 +407,118 @@ const getContentTitle = () => {
 
 @media (max-width: 768px) {
   .content-page {
-    padding: 20px 10px;
+    padding: 0;
   }
 
   .mypage-container {
     grid-template-columns: 1fr;
-    gap: 20px;
+    gap: 0;
+    padding-top: 60px;
   }
 
+  /* 모바일 헤더 표시 */
+  .mobile-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    padding: 16px 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+  }
+
+  .mobile-header h1 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: #1a1a1a;
+  }
+
+  .hamburger-btn {
+    background: none;
+    border: none;
+    padding: 8px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 32px;
+    height: 32px;
+    justify-content: center;
+    z-index: 1001;
+    position: relative;
+  }
+
+  .hamburger-line {
+    width: 24px;
+    height: 3px;
+    background: #3C4DFF;
+    border-radius: 2px;
+    transition: all 0.3s ease;
+  }
+
+  /* 사이드바 오버레이 표시 */
+  .sidebar-overlay {
+    display: block;
+  }
+
+  /* 사이드바 모바일 스타일 */
   .sidebar {
-    position: static;
+    position: fixed;
+    top: 0;
+    left: -100%;
+    bottom: 0;
+    width: 280px;
+    max-width: 85vw;
+    z-index: 999;
+    border-radius: 0;
+    max-height: 100vh;
+    transition: left 0.3s ease;
+  }
+
+  .sidebar.mobile-open {
+    left: 0;
+  }
+
+  .sidebar-overlay.active {
+    display: block;
+  }
+
+  .close-btn {
+    display: flex;
+  }
+
+  /* 메인 콘텐츠 */
+  .main-content {
+    border-radius: 0;
+    height: auto;
+    min-height: calc(100vh - 60px);
   }
 
   .content-header {
-    padding: 24px 20px;
+    display: none; /* 모바일 헤더로 대체 */
   }
 
   .content-body {
-    padding: 24px 20px;
+    padding: 24px 16px;
+  }
+
+  .placeholder {
+    min-height: 300px;
+  }
+}
+
+@media (max-width: 480px) {
+  .mobile-header h1 {
+    font-size: 16px;
+  }
+
+  .content-body {
+    padding: 20px 12px;
   }
 }
 </style>

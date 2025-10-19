@@ -4,3 +4,8 @@
 @use '~bootstrap/bootstrap' as *;
 @use 'user-custom' as *;         // 네임스페이스 적용된 사용자 커스텀
 @import '../css/style.extension.css'; // (필요 시 SCSS로 마이그레이션 예정)
+
+html, body {
+  margin: 0;
+  padding: 0;
+}

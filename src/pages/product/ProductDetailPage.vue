@@ -148,38 +148,71 @@
             </div>
         </div>
 
+        <!-- ============================================= -->
+        <!--           새로운 정보 섹션 (3단 구조)           -->
+        <!-- ============================================= -->
         <div class="row mt-5">
             <div class="col-12">
-                <div class="details-section">
-                    <h3 class="details-title">상품 상세 정보</h3>
-                    <div class="details-grid">
-                        <div class="detail-item"><span><strong>카테고리</strong></span><span>{{ auction.categoryName }}</span></div>
-                        <div class="detail-item">
-                            <span><strong>{{ isAuction ? '경매 시작가' : '판매가' }}</strong></span><span>{{ formattedStartPrice }}</span>
+                <!-- 1. 상품 정보 섹션 -->
+                <section class="mb-5">
+                    <h3 class="section-title">상품 정보</h3>
+                    <div class="info-container">
+                        <div class="info-row">
+                            <div class="info-label">굿즈 카테고리</div>
+                            <div class="info-content">{{ auction.categoryName }}</div>
                         </div>
-                        <div class="detail-item">
-                            <span><strong>{{ isAuction ? '경매 시작' : '판매 시작' }}</strong></span><span>{{ formattedStartTime }}</span>
+                        <div class="info-row">
+                            <div class="info-label">아티스트</div>
+                            <div class="info-content">{{ koreanArtistGroupType }} / {{ auction.artistName }}</div>
                         </div>
-                        <div class="detail-item">
-                            <span><strong>{{ isAuction ? '경매 마감' : '판매 마감' }}</strong></span><span>{{ formattedEndTime }}</span>
+                        <div class="info-row">
+                            <div class="info-label">해시태그</div>
+                            <div class="info-content">
+                                <div v-if="auction.hashtags" class="hashtag-container">
+                                    <span v-for="tag in auction.hashtags.split(',').map(t => t.trim())" :key="tag" class="hashtag">
+                                        #{{ tag }}
+                                    </span>
+                                </div>
+                                <span v-else>-</span>
+                            </div>
                         </div>
-                        <div class="detail-item"><span><strong>아티스트</strong></span><span>{{ auction.artistName }}</span></div>
-                        <div class="detail-item"><span><strong>그룹타입</strong></span><span>{{ koreanArtistGroupType }}</span></div>
-                        <!-- albumTitle이 null이 아닐 경우에만 렌더링 -->
-                        <div class="detail-item" v-if="auction.albumTitle"><span><strong>앨범</strong></span><span>{{ auction.albumTitle }}</span></div>
-
+                        <div class="info-row">
+                            <div class="info-label">상품 설명</div>
+                            <div class="info-content">{{ auction.itemDescription }}</div>
+                        </div>
                     </div>
-                </div>
-            </div>
-        </div>
+                </section>
 
+                <!-- 2. 검수 정보 섹션 -->
+                <section class="mb-5">
+                    <h3 class="section-title">검수 정보</h3>
+                    <div v-if="auction.checklist && auction.checklist.length" class="checklist-table">
+                        <div v-for="item in auction.checklist" :key="item.checklistItem.checklistItemId" class="cl-row">
+                            <div class="cl-col label">{{ item.checklistItem.label }}</div>
+                            <div class="cl-col content">{{ parseChecklistAnswer(item.inspectorAnswer) }}</div>
+                        </div>
+                    </div>
+                    <p v-else class="text-muted">검수 정보가 없습니다.</p>
+                </section>
 
-        <div class="row mt-5">
-            <div class="col-12">
-                <div class="product-description">
-                    <h5><strong>상품 설명</strong></h5>
-                    <p>{{ auction.itemDescription }}</p>
-                </div>
+                <!-- 3. 경매/판매 정보 섹션 -->
+                <section class="mb-5">
+                    <h3 class="section-title">{{ isAuction ? '경매 정보' : '판매 정보' }}</h3>
+                    <div class="info-container">
+                        <div class="info-row">
+                            <div class="info-label">{{ isAuction ? '경매 시작가' : '판매가' }}</div>
+                            <div class="info-content">{{ formattedStartPrice }}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">{{ isAuction ? '경매 시작시간' : '판매 시작시간' }}</div>
+                            <div class="info-content">{{ formattedStartTime }}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">{{ isAuction ? '경매 마감시간' : '판매 마감시간' }}</div>
+                            <div class="info-content">{{ formattedEndTime }}</div>
+                        </div>
+                    </div>
+                </section>
             </div>
         </div>
 
@@ -242,16 +275,24 @@
  * 1. 임포트 (Import) & 초기 설정
  * ============================================= */
     import { ref, onMounted, onUnmounted, computed , watch} from 'vue';
-    import { useRoute } from 'vue-router';
+    import { useRoute, useRouter } from 'vue-router';
     import { getAuctionDetails, getAuctionWinnerStatus} from '@/api/auction';  //경매 관련 API 함수
     import { getBidsByAuctionId } from '@/api/bid';  //입찰 관련 API 함수
     import { useUserStore } from '@/stores/userStore';
     import { subscribe, unsubscribe, publish, disconnect, connect } from '@/services/websocketService';
+    import { usePaymentStore } from '@/stores/paymentStore';
     import ProductAuctionPolicy from '@/components/product/ProductAuctionPolicy.vue'; // 경매 이용 안내 컴포넌트
+    import { useNotification } from '@/utils/notificationComposable';
+    import { useNotificationStore } from '@/stores/notificationStore';
+    import { useAlertDialog } from '@/composables/useAlertDialog';
 
     const route = useRoute();
+    const router = useRouter();
     const userStore = useUserStore();
+    const paymentStore = usePaymentStore();
+    const notificationComposable = useNotification(userStore, useNotificationStore());
     const auctionId = route.params.id;
+    const { showAlert: showAlertDialog } = useAlertDialog();
 
 /* =============================================
 * 2. 상태 (State)
@@ -544,7 +585,7 @@
     // 입찰 금액 서버로 전송 (로그인 상태 확인 포함)
     const sendBid = () => {
         if (!userStore.isLoggedIn) {
-            alert("로그인이 필요한 기능입니다.");
+            showAlertDialog("알림", "로그인이 필요한 기능입니다.");
             return;
         }
 
@@ -567,18 +608,23 @@
      */
     const purchaseNow = () => {
         if (!userStore.isLoggedIn) {
-            alert("로그인이 필요한 기능입니다.");
+            showAlertDialog("알림", "로그인이 필요한 기능입니다.");
             return;
         }
-        // TODO: 즉시 구매 로직 구현 (결제 페이지로 이동)
-        console.log("즉시 구매 시도");
+        paymentStore.setAuctionContext(auctionId);
+        router.push('/product/order/info');
     };
 
     /**
      * 낙찰 후 결제하기 버튼 클릭 시 동작
      */
     const goToPayment = () => {
-        alert('Todo : 결제 페이지 이동');
+        if (!userStore.isLoggedIn) {
+            showAlertDialog("알림", "로그인이 필요한 기능입니다.");
+            return;
+        }
+        paymentStore.setAuctionContext(auctionId);
+        router.push('/product/order/info');
     };
 
     const validateAndConfirmBid = () => {
@@ -587,23 +633,23 @@
         const numericStartPrice = auction.value.price;
 
         if (isNaN(newBid) || newBid <= 0 || newBid % 100 !== 0) {
-            alert("입찰 금액을 100원 단위의 올바른 숫자로 입력해주세요.");
+            showAlertDialog("알림", "입찰 금액을 100원 단위의 올바른 숫자로 입력해주세요.");
             return;
         }
 
         if(newBid > 200000000){
-            alert("입찰 금액은 최대 2억원까지만 가능합니다.");
+            showAlertDialog("알림", "입찰 금액은 최대 2억원까지만 가능합니다.");
             return;
         }
         
         if (numericCurrentPrice === numericStartPrice) {
             if (newBid <= numericStartPrice) {
-                alert(`입찰 금액은 시작가(${formattedStartPrice.value})보다 높아야 합니다.`);
+                showAlertDialog("알림", `입찰 금액은 시작가(${formattedStartPrice.value})보다 높아야 합니다.`);
                 return;
             }
         } else {
             if (newBid < numericCurrentPrice + 1000) {
-                alert(`입찰 금액은 현재가(${formattedCurrentPrice.value})보다 1,000원 이상 높아야 합니다.`);
+                showAlertDialog("알림", `입찰 금액은 현재가(${formattedCurrentPrice.value})보다 1,000원 이상 높아야 합니다.`);
                 return;
             }
         }
@@ -611,6 +657,7 @@
         const isConfirmed = confirm(`${newBid.toLocaleString()}원 입찰하시겠습니까?`);
 
         if (isConfirmed) {
+            notificationComposable.subscribeAuction(auctionId)
             sendBid();
         }
  	  };
@@ -660,7 +707,7 @@
     const openBidModal = () => {
         // 경매 상태 선제적 확인
         if (!['ACTIVE', 'REACTIVE'].includes(auction.value.saleStatus) || isAuctionEnded.value) {
-            alert("경매가 진행중인 상품이 아닙니다.");
+            showAlertDialog("알림", "경매가 진행중인 상품이 아닙니다.");
             // 최신 상태를 보여주기 위해 데이터 갱신
             fetchAuctionData();
             return;
@@ -680,6 +727,20 @@
     const quickBid = (amountToAdd) => {
  	 	 	bidAmount.value = currentBidPrice.value + amountToAdd;
  	  };
+
+    /**
+     * 체크리스트 답변(JSON 문자열 가능)을 파싱하는 함수
+     */
+    const parseChecklistAnswer = (answer) => {
+        if (answer === null || answer === undefined) return 'N/A';
+        try {
+            // 예: '"없음"' -> '없음'
+            return JSON.parse(answer);
+        } catch (e) {
+            // JSON이 아닌 일반 문자열이면 그대로 반환
+            return answer;
+        }
+    };
 
 /* =============================================
 * 5. 라이프사이클 훅 (Lifecycle Hooks)
@@ -722,7 +783,7 @@
     2. 좌측 - 상품 이미지 영역
     ============================================= */
 
-        .product-image-container {
+    .product-image-container {
         position: relative;
         border: 2px solid #dee2e6; /* Border thickness increased to 2px */
         border-radius: 8px;
@@ -1066,6 +1127,87 @@
         max-width: 700px; /* 가이드 모달은 조금 더 넓게 */
         max-height: 80vh; /* 화면 높이의 80%로 최대 높이 제한 */
         overflow-y: auto; /* 내용이 길어지면 스크롤 생성 */
+    }
+
+    /* =============================================
+    7. 새로운 정보 섹션 스타일
+    ============================================= */
+    .section-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #dee2e6;
+        text-decoration: none; /* 텍스트에 밑줄이나 취소선이 생기는 것을 방지 */
+    }
+
+    .info-row {
+        display: grid;
+        grid-template-columns: 150px 1fr;
+        border-bottom: 1px solid #dee2e6; /* 구분선 색상 짙게 변경 */
+    }
+
+    .info-row > div {
+        padding: 1rem;
+    }
+
+    .info-label {
+        font-weight: 600;
+        color: #495057;
+        background-color: #f8f9fa;
+    }
+
+    .info-content {
+        color: #212529;
+        white-space: pre-wrap; /* 줄바꿈 유지를 위해 */
+    }
+
+    .info-content .hashtag-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .info-content .hashtag {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 16px;
+        background-color: #f1f3f5;
+        color: #495057;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+
+    /* h3.section-title의 가상요소(::before)로 인한 취소선 제거 */
+    h3.section-title::before {
+        display: none;
+    }
+
+    /* 체크리스트 테이블 */
+    .checklist-table {
+        /* border-top을 제거하여 section-title의 border-bottom과 중복되지 않도록 함 */
+    }
+
+    .cl-row {
+        display: grid;
+        grid-template-columns: 200px 1fr; /* 항목과 내용만 표시 */
+        border-bottom: 1px solid #dee2e6; /* 구분선 색상 짙게 변경 */
+    }
+
+    .cl-col {
+        padding: 12px 10px;
+        display: flex;
+        align-items: center;
+        font-size: 1rem;
+    }
+
+    .cl-col.label {
+        font-weight: 600;
+        background-color: #f8f9fa;
+    }
+
+    .cl-col.content {
+        color: #343a40;
     }
 
 </style>

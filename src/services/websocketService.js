@@ -30,7 +30,7 @@ const connect = (token) => {
     connectionPromise = new Promise((resolve, reject) => {
         try{
             stompClient = new Client({
-        webSocketFactory: () => new SockJS(`${import.meta.env.VITE_API_SERVER_URL}/ws-auction`), 
+        webSocketFactory: () => new SockJS(`${import.meta.env.VITE_API_SERVER_URL}/api/ws-auction`), 
         connectHeaders: connectHeaders,
         onConnect: () => {
             console.log(`WebSocket Connected as ${token ? 'Authenticated User' : 'Anonymous User'}`);

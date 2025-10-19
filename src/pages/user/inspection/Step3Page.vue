@@ -5,9 +5,11 @@ import { submitInspection } from '@/api/userInspection.js'
 import { useInspectionStore } from '@/stores/inspectionStore'
 import { useModal } from '@/composables/useModal'
 import { storeToRefs } from 'pinia'
+import { useAlertDialog } from '@/composables/useAlertDialog.js';
 
 const router = useRouter()
 const inspectionStore = useInspectionStore()
+const {showAlert} = useAlertDialog();
 
 // 로컬 상태
 const isAgreed = ref(false) // 정책 동의 여부
@@ -78,7 +80,7 @@ const submit = async () => {
   if (isLoading.value) return
 
   if (!isAgreed.value) {
-    alert('검수 및 판매 정책에 동의해주세요.')
+    showAlert('알림', '검수 및 판매 정책에 동의해주세요.')
     openPolicyModal()
     return
   }
@@ -108,12 +110,12 @@ const submit = async () => {
     }
 
     await submitInspection(inspectionData)
-    alert('검수 신청이 성공적으로 완료되었습니다!')
+    showAlert('알림', '검수 신청이 성공적으로 완료되었습니다!')
     inspectionStore.$reset()
     router.push('/')
   } catch (err) {
     error.value = err?.message || '신청 처리 중 오류가 발생했습니다.'
-    alert(error.value)
+    showAlert('오류', error.value)
   } finally {
     isLoading.value = false
   }
@@ -121,7 +123,7 @@ const submit = async () => {
 
 onMounted(() => {
   if (completedStep.value < 2) {
-    alert('잘못된 접근입니다. 이전 단계를 먼저 완료해주세요.')
+    showAlert('경고', '잘못된 접근입니다. 이전 단계를 먼저 완료해주세요.')
     router.replace('/inspection/step1')
   }
 
