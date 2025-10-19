@@ -6,12 +6,13 @@ import { useUserStore } from '@/stores/userStore'
 import { usePaymentStore } from '@/stores/paymentStore'
 import { getAllAddressMember, addAddress } from '@/api/address'
 import { getAuctionDetails } from '@/api/auction'
-import { showAlert } from '@/composables/useAlertDialog'
+import { useAlertDialog } from '@/composables/useAlertDialog'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 const paymentStore = usePaymentStore()
+const { showAlert } = useAlertDialog()
 
 // Auction context from query parameter
 const auctionId = ref(null)

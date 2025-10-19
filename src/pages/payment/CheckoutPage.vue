@@ -4,10 +4,11 @@ import { useRouter, onBeforeRouteLeave } from 'vue-router'
 import CardHeader from './components/atoms/CardHeader.vue'
 import { Payment } from '@/module/paymentModule'
 import { usePaymentStore } from '@/stores/paymentStore'
-import { showAlert, useAlertDialog } from '@/composables/useAlertDialog'
+import { useAlertDialog } from '@/composables/useAlertDialog'
 
 const router = useRouter()
 const paymentStore = usePaymentStore()
+const { showAlert } = useAlertDialog()
 
 // 이전 페이지에서 전달된 정보
 const userInfo = ref(null)

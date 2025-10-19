@@ -3,11 +3,12 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import CardHeader from './components/atoms/CardHeader.vue'
 import { usePaymentStore } from '@/stores/paymentStore'
-import { showAlert } from '@/composables/useAlertDialog'
+import { useAlertDialog } from '@/composables/useAlertDialog'
 
 const router = useRouter()
 const route = useRoute()
 const paymentStore = usePaymentStore()
+const { showAlert } = useAlertDialog()
 
 // 결제 정보
 const paymentInfo = ref({
