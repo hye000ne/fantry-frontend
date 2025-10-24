@@ -99,9 +99,9 @@
         sortable: true,
         render: (data, type, row) => {
           if (!data || !row.endTime) return '-';
-          const start = parseJavaLocalDateTime(data);
-          const end = parseJavaLocalDateTime(row.endTime);
-          if (!start || !end) return '유효하지 않은 날짜';
+          const start = parseUtcDateArray(data);
+          const end = parseUtcDateArray(row.endTime);
+          if (!start || !end || isNaN(start.getTime()) || isNaN(end.getTime())) return '유효하지 않은 날짜';
     
           const format = (date) => {
             const pad = (num) => num.toString().padStart(2, '0');
@@ -188,13 +188,15 @@
     watch([saleType, saleStatus], debounce(() => {
       tableKey.value++;
     }, 300));
-const parseJavaLocalDateTime = (dt) => {
+
+const parseUtcDateArray = (dt) => {
     if (!Array.isArray(dt) || dt.length < 5) {
-        return null; 
+        return null;
     }
     const [year, month, day, hour, minute, second = 0] = dt;
-    return new Date(year, month - 1, day, hour, minute, second);
+    return new Date(Date.UTC(year, month - 1, day, hour, minute, second));
 };
+
 
 const saleTypeMap = {
   'AUCTION': '경매',

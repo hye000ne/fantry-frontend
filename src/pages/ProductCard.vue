@@ -27,9 +27,11 @@ const goToDetail = () => {
 const getTimeRemaining = (endTimeArr) => {
     if (!endTimeArr || !Array.isArray(endTimeArr)) return '';
     
-    // 배열 → Date 객체 변환 (month - 1 주의)
-    const [year, month, day, hour, minute, second] = endTimeArr;
-    const end = new Date(year, month - 1, day, hour, minute, second);
+    const [year, month, day, hour, minute, second = 0] = endTimeArr;
+    // API에서 UTC 시간 배열을 받으므로 Date.UTC를 사용하여 정확한 Date 객체 생성
+    const end = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+
+    if (isNaN(end.getTime())) return '계산 중...';
 
     const now = new Date();
     const diff = end - now;

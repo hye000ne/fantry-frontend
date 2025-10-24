@@ -38,7 +38,7 @@
                 <!-- ====================================================== -->
                 <!-- 1. saleStatus가 ACTIVE일 때만 기존 경매/판매 로직 표시 -->
                 <!-- ====================================================== -->
-                <template v-if="auction.saleStatus === 'ACTIVE' || auction.saleStatus === 'REACTIVE'">
+                <template v-if="['ACTIVE', 'REACTIVE', 'SOLD'].includes(auction.saleStatus)">
                     <!-- Case 1: 경매 상품일 경우 ('AUCTION') -->
                     <template v-if="isAuction">
                         <div class="countdown-timer mb-5">
@@ -338,18 +338,30 @@
         return currentBidPrice.value !== auction.value.startPrice;
     })
     const formatPrice = (price) => price != null ? price.toLocaleString() + '원' : '가격 정보 없음';
-    const formatDate = (dateString) => dateString ? new Date(dateString).toLocaleString('ko-KR') : '';
+
+    const parseUtcDateArray = (dt) => {
+        if (!Array.isArray(dt) || dt.length < 5) return null;
+        const [year, month, day, hour, minute, second = 0] = dt;
+        return new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+    };
+
+    const formatDate = (dateArray) => {
+        if (!dateArray) return '';
+        const date = parseUtcDateArray(dateArray);
+        if (!date || isNaN(date.getTime())) return '';
+        return date.toLocaleString('ko-KR');
+    };
 
     const endTimeMs = computed(() => {
         if (!auction.value?.endTime) return null;
-        const dateObj = parseJavaLocalDateTime(auction.value.endTime);
+        const dateObj = parseUtcDateArray(auction.value.endTime);
         return dateObj ? dateObj.getTime() : null;
     });
 
     const formattedCurrentPrice = computed(() => formatPrice(currentBidPrice.value));
     const formattedStartPrice = computed(() => formatPrice(auction.value?.startPrice));
-    const formattedStartTime = computed(() => formatDate(parseJavaLocalDateTime(auction.value?.startTime)));
-    const formattedEndTime = computed(() => formatDate(parseJavaLocalDateTime(auction.value?.endTime)));
+    const formattedStartTime = computed(() => formatDate(auction.value?.startTime));
+    const formattedEndTime = computed(() => formatDate(auction.value?.endTime));
 
     const isMyBidHighest = computed(() => {
         if (!userStore.isLoggedIn || !highestBidderId.value) {
@@ -431,12 +443,8 @@
             auction.value = response.data;
                         
             // --- 이미지 데이터 처리 ---
-            // 서버 응답에 fileInfos가 있고, 내용이 있을 경우에만 실행
             if (response.data.fileInfos && response.data.fileInfos.length > 0) {
-                // Vite 환경 변수에서 기본 URL을 가져옵니다. 
                 const baseUrl = import.meta.env.VITE_FILE_BASE_URL || '';
-
-                // forEach와 push를 사용하여 배열을 채웁니다. 
                 const images = [];
                 response.data.fileInfos.forEach(file => {
                     images.push({
@@ -445,11 +453,8 @@
                     });
                 });
                 productImages.value = images;
-
-                // 메인 이미지를 첫 번째 이미지로 설정합니다.
                 mainImageSrc.value = productImages.value[0].src;
             } else {
-                // 이미지가 없을 경우, 기본 이미지 경로를 설정할 수 있습니다.
                 productImages.value = [        
                     { id: 1, src: '/images/ww.png' },
                     { id: 2, src: '/images/654.png' },
@@ -461,43 +466,48 @@
                 ];
                 mainImageSrc.value = productImages.value[0].src;
             }
-            // --- 이미지 데이터 처리 끝 ---
 
             highestBidderId.value = auction.value.highestBidderId; // 최고 입찰자 ID 설정
-            console.log(response.data);
+            currentBidPrice.value = auction.value.currentPrice;
 
-            // saleStatus가 ACTIVE 또는 REACTIVE일 때만 경매 관련 로직 수행
-            if (['ACTIVE', 'REACTIVE'].includes(auction.value.saleStatus)) {
-                // 경매 종료 여부 초기 확인
-                const endTime = parseJavaLocalDateTime(auction.value.endTime);
-                if (endTime && new Date() > endTime) {
-                    isAuctionEnded.value = true;
-                }
+            // --- 경매 종료 상태 결정 ---
+            const endTime = parseUtcDateArray(auction.value.endTime);
+            const isTimeOver = endTime && new Date() > endTime;
+            const isStatusEnded = ['SOLD', 'NOT_SOLD', 'CANCELLED'].includes(auction.value.saleStatus);
 
-                if (isAuctionEnded.value) {
-                    // 경매가 종료된 경우, 유저의 낙찰 상태를 확인합니다.
-                    if (userStore.isLoggedIn && isAuction.value) {
-                        try {
-                            const statusResponse = await getAuctionWinnerStatus(auctionId, userStore.currentUser.memberId);
-                            userAuctionState.value = getKoreanAuctionStatus(statusResponse.data);
-                        } catch (e) {
-                            console.error("낙찰자 상태 조회에 실패했습니다:", e);
-                            userAuctionState.value = 'USER'; // 실패 시 기본값
-                        }
-                    } else {
-                        userAuctionState.value = 'USER'; // 비로그인 또는 경매 상품이 아님
+            if (isTimeOver || isStatusEnded) {
+                isAuctionEnded.value = true;
+            } else {
+                isAuctionEnded.value = false;
+            }
+
+            // --- 종료된 경매 처리 ---
+            if (isAuctionEnded.value) {
+                if (userStore.isLoggedIn && isAuction.value) {
+                    try {
+                        const statusResponse = await getAuctionWinnerStatus(auctionId, userStore.currentUser.memberId);
+                        userAuctionState.value = getKoreanAuctionStatus(statusResponse.data);
+                    } catch (e) {
+                        console.error("낙찰자 상태 조회에 실패했습니다:", e);
+                        userAuctionState.value = 'USER'; // 실패 시 기본값
                     }
                 } else {
-                    // 경매가 진행 중인 경우에만 WebSocket 구독 및 관련 데이터 로드
+                    userAuctionState.value = 'USER'; // 비로그인 또는 경매 상품이 아님
+                }
+                if (countdownInterval) clearInterval(countdownInterval);
+                timeRemaining.value = isAuction.value ? "경매 종료" : "판매 종료";
+            } 
+            // --- 진행 중인 경매 처리 ---
+            else {
+                if (['ACTIVE', 'REACTIVE'].includes(auction.value.saleStatus)) {
                     if (isAuction.value) {
-                        currentBidPrice.value = auction.value.currentPrice;
                         setupWebSocketSubscription();
                         fetchBidHistory(auctionId);
                     }
+                    startCountdown();
                 }
-                
-                startCountdown(); // 카운트다운은 ACTIVE/REACTIVE 상태에서만 시작
             }
+
         } catch (err) {
             error.value = "상품 정보를 불러오는 데 실패했습니다. 페이지를 새로고침해주세요.";
             console.error("Fetch auction data failed:", err);
@@ -575,7 +585,7 @@
             const response = await getBidsByAuctionId(auctionId);
             bidHistory.value = response.data.map(bid => ({
                 bidAmount: bid.bidAmount,
-                bidAt: parseJavaLocalDateTime(bid.bidAt)
+                bidAt: bid.bidAt
             }));
         } catch (err) {
             console.error("Failed to fetch bid history:", err);
@@ -667,14 +677,7 @@
         mainImageSrc.value = newSrc;
     };
 
-    //Java LocalDateTime 배열을 JS Date 객체로 변환
-    const parseJavaLocalDateTime = (dt) => {
-        if (!Array.isArray(dt) || dt.length < 5) {
-            return null;
-        }
-        const [year, month, day, hour, minute, second = 0] = dt;
-        return new Date(year, month - 1, day, hour, minute, second);
-    };
+
 
     // 경매 마감까지 남은 시간 계산 및 표시
     const startCountdown = () => {
@@ -745,8 +748,13 @@
 /* =============================================
 * 5. 라이프사이클 훅 (Lifecycle Hooks)
 * ============================================= */
-    onMounted(() => {
-        fetchAuctionData();
+    onMounted(async () => {
+        // 사용자 정보가 없으면 먼저 로드합니다.
+        if (userStore.authToken && !userStore.currentUser) {
+            await userStore.fetchUser();
+        }
+        // 사용자 정보를 기다린 후 경매 데이터를 가져옵니다.
+        await fetchAuctionData();
         console.log("페이지 마운트 됨");
     });
 

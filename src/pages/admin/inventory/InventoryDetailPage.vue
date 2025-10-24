@@ -206,29 +206,38 @@ const getImageUrl = (path) => {
 }
 const formatPrice = (v) => (v != null ? `${Number(v).toLocaleString()}원` : '-')
 
-// Java LocalDateTime 배열을 JS Date 객체로 변환
+// Java LocalDateTime 배열을 JS Date 객체로 변환 (로컬 시간 기준)
 const parseJavaLocalDateTime = (dt) => {
   if (!Array.isArray(dt) || dt.length < 5) return null
   const [year, month, day, hour, minute, second = 0] = dt
+  // 서버에서 오는 시간은 로컬 시간으로 간주
   return new Date(year, month - 1, day, hour, minute, second)
 }
 
-// Date 객체를 yyyy-MM-ddTHH:mm 형식의 문자열로 변환 (datetime-local input용)
+// Date 객체를 yyyy-MM-ddTHH:mm 형식의 로컬 시간 문자열로 변환 (datetime-local input용)
 const toLocalISOString = (date) => {
-    if (!date) return ''
-    const d = parseJavaLocalDateTime(date) ?? new Date(date);
-    const tzoffset = d.getTimezoneOffset() * 60000; // timezone offset in milliseconds
-    const localISOTime = new Date(d - tzoffset).toISOString().slice(0, -1);
-    return localISOTime;
-};
+  if (!date) return ''
 
-// Converts a local datetime-local string to a UTC ISO string, preserving the local time components
+  // parseJavaLocalDateTime가 UTC 기준으로 Date 객체를 생성
+  const d = parseJavaLocalDateTime(date) ?? new Date(date)
+  if (isNaN(d.getTime())) return ''
+
+  // 로컬 시간대의 년, 월, 일, 시, 분을 가져옴
+  const year = d.getFullYear()
+  const month = (d.getMonth() + 1).toString().padStart(2, '0')
+  const day = d.getDate().toString().padStart(2, '0')
+  const hours = d.getHours().toString().padStart(2, '0')
+  const minutes = d.getMinutes().toString().padStart(2, '0')
+
+  // yyyy-MM-ddTHH:mm 형식으로 조합
+  return `${year}-${month}-${day}T${hours}:${minutes}`
+}
+
+// 로컬 시간 문자열 (yyyy-MM-ddTHH:mm)을 UTC ISO 문자열로 변환
 const toUtcIsoStringFromLocal = (localDateTimeString) => {
   if (!localDateTimeString) return '';
-  const localDate = new Date(localDateTimeString);
-  // Adjust the date to be UTC while preserving the local time components
-  const utcDate = new Date(localDate.getTime() - localDate.getTimezoneOffset() * 60000);
-  return utcDate.toISOString();
+  const date = new Date(localDateTimeString);
+  return date.toISOString();
 };
 
 </script>
@@ -288,8 +297,7 @@ const toUtcIsoStringFromLocal = (localDateTimeString) => {
               <h5 class="fw-semibold border-bottom pb-2 mb-3">가격 정보</h5>
               <dl class="info-grid">
                 <dt>판매자 희망가</dt><dd class="text-primary fw-bold">{{ formatPrice(info.sellerHopePrice) }}</dd>
-                <dt>시스템 예상가</dt><dd>{{ formatPrice(info.expectedPrice) }}</dd>
-                <dt>팬트리 평균가</dt><dd>{{ formatPrice(info.marketAvgPrice) }}</dd>
+                <dt>최종 판매가</dt><dd class="text-primary fw-bold">{{ formatPrice(inspectionDetail.finalBuyPrice) }}</dd>
               </dl>
             </section>
 
@@ -332,8 +340,7 @@ const toUtcIsoStringFromLocal = (localDateTimeString) => {
                   </div>
                   <div class="mt-2 d-flex flex-wrap">
                     <button type="button" class="btn btn-sm btn-outline-secondary mr-2 mb-2" @click="saleForm.startPrice = info.sellerHopePrice" :disabled="isLocked || !info.sellerHopePrice">판매자 희망가</button>
-                    <button type="button" class="btn btn-sm btn-outline-info mr-2 mb-2" @click="saleForm.startPrice = info.expectedPrice" :disabled="isLocked || !info.expectedPrice">시스템 예상가</button>
-                    <button type="button" class="btn btn-sm btn-outline-success mb-2" @click="saleForm.startPrice = info.marketAvgPrice" :disabled="isLocked || !info.marketAvgPrice">팬트리 평균가</button>
+                    <button type="button" class="btn btn-sm btn-outline-danger mr-2 mb-2" @click="saleForm.startPrice = inspectionDetail.finalBuyPrice" :disabled="isLocked || !inspectionDetail.finalBuyPrice">최종 판매가</button>
                   </div>
                 </div>
 
@@ -357,6 +364,8 @@ const toUtcIsoStringFromLocal = (localDateTimeString) => {
                     <span class="input-group-text">원</span>
                   </div>
                 </div>
+
+
               </div>
 
               <!-- 버튼 영역 -->

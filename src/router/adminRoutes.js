@@ -127,26 +127,42 @@ const adminRoutes = [
               { path: 'reportReceiveEdit/:reportId', name: 'AdminReportReceiveEdit', component: ReportReceiveEditPage, props: true, meta: { hidden: true } },
             ],
           },
-          // --- 재고 관리 ---
+          
+          // --- 재고/판매 관리 ---
           {
             path: 'inventory',
-            meta: { title: '재고관리', icon: 'fas fa-fw fa-boxes', menu: true },
+            redirect: { name: 'AdminInventoryDashboard' },
+            meta: { title: '재고/판매 관리', icon: 'fas fa-fw fa-boxes', menu: true },
             children: [
-              { path: 'dashboard', name: 'AdminInventoryDashboard', component: InventoryDashboardPage, meta: { title: '대시보드' } }, // 재고관리 대시보드 추가
-              { path: 'list', name: 'AdminInventoryList', component: InventoryListPage, meta: { title: '재고 목록' } },
-              { path: 'detail/:id', name: 'AdminInventoryDetail', component: () => import('@/pages/admin/inventory/InventoryDetailPage.vue'), props: true, meta: { hidden: true } },
+              {
+                path: 'dashboard',
+                name: 'AdminInventoryDashboard',
+                component: InventoryDashboardPage,
+                meta: { title: '재고 대시보드' },
+              },
+              {
+                path: 'list',
+                name: 'AdminInventoryList',
+                component: InventoryListPage,
+                meta: { title: '재고 목록' },
+              },
+              {
+                path: 'sale-list',
+                name: 'AdminSaleList',
+                component: AuctionListPage,
+                meta: { title: '판매 상품 목록' },
+              },
+              {
+                path: 'detail/:id',
+                name: 'AdminInventoryDetail',
+                component: () => import('@/pages/admin/inventory/InventoryDetailPage.vue'),
+                props: true,
+                meta: { title: '재고 상세', hidden: true },
+              },
             ],
           },
-          // --- 판매 관리 ---
-          {
-            path: 'sale',
-            meta: { title: '판매관리', icon: 'fas fa-fw fa-gavel', menu: true },
-            children: [
-              { path: 'dashboard', name: 'AdminSalesDashboard', component: SalesDashboardPage, meta: { title: '대시보드' } }, // 판매 관리 대시보드 추가
-              { path: 'list', name: 'AdminSaleList', component: AuctionListPage, meta: { title: '판매 상품 목록' } },
-            ],
-          },
-          // --- 주문 관리 ---
+          
+          // --- 주문 관리 (추가) ---
           {
             path: 'order',
             meta: { title: '주문관리', icon: 'fas fa-fw fa-receipt', menu: true },
